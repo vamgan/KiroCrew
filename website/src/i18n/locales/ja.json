@@ -7800,7 +7800,6 @@
       "failed_to_uninstall": "{{name}} のアンインストールに失敗しました",
       "failed_to_update": "更新に失敗しました：{{names}}",
       "find_apps_in_the_discover_tab_or_install_from_a": "アプリは「見つける」ページで探すか、そのページの「ソース」からローカルパスでインストールできます。",
-      "hidden_you_can_re_enable_it_from_the_discover_ta": "無効にしました。「見つける」ページから再有効化できます。",
       "keep_app_data": "アプリデータを保持",
       "keep_dependency": "依存関係 {{name}} を保持",
       "keep_this_dependency": "この依存関係を保持",

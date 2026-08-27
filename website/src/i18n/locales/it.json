@@ -8030,7 +8030,6 @@
       "failed_to_uninstall": "Impossibile disinstallare {{name}}",
       "failed_to_update": "Impossibile aggiornare: {{names}}",
       "find_apps_in_the_discover_tab_or_install_from_a": "Trova le app nella pagina Scopri, oppure installa da un percorso locale tramite Sorgenti in quella pagina.",
-      "hidden_you_can_re_enable_it_from_the_discover_ta": "Disabilitato. Puoi riabilitarlo dalla pagina Scopri.",
       "keep_app_data": "Mantieni i dati dell'app",
       "keep_dependency": "Mantieni la dipendenza {{name}}",
       "keep_this_dependency": "Mantieni questa dipendenza",

@@ -48,7 +48,6 @@ export default function LibraryPage() {
 
   const [query, setQuery] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
-  const [successLink, setSuccessLink] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const {
@@ -128,18 +127,6 @@ export default function LibraryPage() {
       if (action === 'enable') await runEnable(name)
       else if (action === 'disable') await api.disableApp(name)
       announceAppsChanged()
-      // Show toast when hiding a builtin app
-      if (action === 'disable') {
-        const app = apps.find(a => a.name === name)
-        if (app?.origin === 'builtin') {
-          // A disabled overlay-less builtin leaves this list (keepInLibrary),
-          // so the recovery affordance is its catalog row on the Discover
-          // shelf — the toast points there and carries the link.
-          setSuccessMsg(i18nT('pages.appsPage.hidden_you_can_re_enable_it_from_the_discover_ta'))
-          setSuccessLink(true)
-          setTimeout(() => { setSuccessMsg(''); setSuccessLink(false) }, 4000)
-        }
-      }
     } catch (e) {
       if (action === 'enable' && isTrustDeniedError(e)) trust.open(trustTarget(name))
       else setError((e as Error)?.message || i18nT('pages.appsPage.action_failed', { action, name }))
@@ -198,15 +185,7 @@ export default function LibraryPage() {
         {successMsg && (
           <div className="mb-4 bg-bg-elevated border rounded-lg p-3 flex items-center gap-3 animate-rise" style={{ borderColor: 'color-mix(in srgb, var(--ok) 45%, transparent)' }}>
             <span className="text-text text-sm flex-1">{successMsg}</span>
-            {/* Set only by the disable-builtin toast: the row this action
-                removed re-enables from its Discover catalog row, so the toast
-                carries the navigation instead of naming a page and hoping. */}
-            {successLink && (
-              <Link to="/apps" className="text-accent text-sm font-medium hover:underline shrink-0">
-                {i18nT('nav.discover')}
-              </Link>
-            )}
-            <button aria-label={i18nT('pages.appsPage.dismiss_message')} className="text-muted hover:text-text text-sm" onClick={() => { setSuccessMsg(''); setSuccessLink(false) }}><X className="lucide-inline" /></button>
+            <button aria-label={i18nT('pages.appsPage.dismiss_message')} className="text-muted hover:text-text text-sm" onClick={() => setSuccessMsg('')}><X className="lucide-inline" /></button>
           </div>
         )}
 
@@ -234,7 +213,6 @@ export default function LibraryPage() {
             onKeyDown={e => { if (e.key === 'Escape') { setUninstallTarget(null); setUninstallPreview(null) } }}
             tabIndex={-1} ref={el => el?.focus()} role="dialog" aria-modal="true" aria-label={i18nT('pages.appsPage.confirm_uninstall')}
           >
-            {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
             <div role="presentation" className="bg-card border border-border rounded-xl p-6 max-w-md w-full mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-xl bg-danger/10 flex items-center justify-center">

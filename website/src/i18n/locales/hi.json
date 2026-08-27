@@ -7915,7 +7915,6 @@
       "failed_to_uninstall": "{{name}} अनइंस्टॉल नहीं हो सका",
       "failed_to_update": "अपडेट नहीं हो सका: {{names}}",
       "find_apps_in_the_discover_tab_or_install_from_a": "डिस्कवर पेज पर ऐप्स खोजो, या उस पेज के सोर्सेज़ से लोकल पाथ से इंस्टॉल करो।",
-      "hidden_you_can_re_enable_it_from_the_discover_ta": "बंद कर दिया गया। इसे डिस्कवर पेज से दोबारा चालू कर सकते हो।",
       "keep_app_data": "ऐप डेटा रखें",
       "keep_dependency": "डिपेंडेंसी {{name}} रखें",
       "keep_this_dependency": "इस निर्भरता को रखें",

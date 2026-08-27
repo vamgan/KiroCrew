@@ -8030,7 +8030,6 @@
       "failed_to_uninstall": "Échec de la désinstallation de {{name}}",
       "failed_to_update": "Échec de la mise à jour : {{names}}",
       "find_apps_in_the_discover_tab_or_install_from_a": "Trouvez des apps sur la page Découvrir, ou installez depuis un chemin local via Sources sur cette page.",
-      "hidden_you_can_re_enable_it_from_the_discover_ta": "Désactivé. Vous pouvez le réactiver depuis la page Découvrir.",
       "keep_app_data": "Conserver les données de l'application",
       "keep_dependency": "Conserver la dépendance {{name}}",
       "keep_this_dependency": "Conserver cette dépendance",
