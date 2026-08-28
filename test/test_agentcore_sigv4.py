@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 from typing import Any
@@ -612,3 +614,84 @@ def test_proxy_rechecks_permission_after_body_read() -> None:
     sign = src.index("sign_aws_request")
     assert body < check < sign
     assert "upstream_url=proxy.upstream_url" in src
+
+
+def test_reset_workload_proxy_waits_for_stop() -> None:
+    from kiro_crew.platform import agentcore_sigv4 as sigv4
+
+    order: list[str] = []
+
+    class _Rec:
+        def stop(self) -> None:
+            order.append("stop")
+
+    sigv4.reset_workload_proxy()
+    with sigv4._LOCK:
+        sigv4._PROXY = _Rec()  # type: ignore[assignment]
+    sigv4.reset_workload_proxy()
+    order.append("return")
+    assert order == ["stop", "return"]
+    with sigv4._LOCK:
+        assert sigv4._PROXY is None
+
+
+def test_proxy_stop_waits_for_in_flight_handler_slots() -> None:
+    from kiro_crew.platform.agentcore_sigv4 import (
+        PROXY_MAX_INFLIGHT,
+        GatewaySigV4Proxy,
+    )
+
+    slots = threading.BoundedSemaphore(PROXY_MAX_INFLIGHT)
+    assert slots.acquire(blocking=False)
+    proxy = GatewaySigV4Proxy("https://abc.gateway.bedrock-agentcore.us-west-2.amazonaws.com/mcp")
+    proxy._handler_slots = slots
+    order: list[str] = []
+
+    def _release() -> None:
+        time.sleep(0.05)
+        order.append("release")
+        slots.release()
+
+    thread = Thread(target=_release)
+    thread.start()
+    proxy.stop()
+    order.append("stopped")
+    thread.join()
+    assert order == ["release", "stopped"]
+
+
+def test_proxy_stop_acquires_every_slot_without_deadline() -> None:
+    from kiro_crew.platform.agentcore_sigv4 import (
+        PROXY_MAX_INFLIGHT,
+        GatewaySigV4Proxy,
+    )
+
+    calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+    class _Slots:
+        def acquire(self, *args: Any, **kwargs: Any) -> bool:
+            calls.append((args, kwargs))
+            return True
+
+    proxy = GatewaySigV4Proxy("https://abc.gateway.bedrock-agentcore.us-west-2.amazonaws.com/mcp")
+    proxy._handler_slots = _Slots()  # type: ignore[assignment]
+    proxy.stop()
+    assert len(calls) == PROXY_MAX_INFLIGHT
+    assert all(args == () and kwargs == {} for args, kwargs in calls)
+
+
+def test_proxy_stop_closes_unauthed_sockets() -> None:
+    from kiro_crew.platform.agentcore_sigv4 import GatewaySigV4Proxy
+
+    closed: list[object] = []
+
+    class _Sock:
+        def close(self) -> None:
+            closed.append(self)
+
+    sock = _Sock()
+    proxy = GatewaySigV4Proxy("https://abc.gateway.bedrock-agentcore.us-west-2.amazonaws.com/mcp")
+    proxy._unauthed_requests.add(sock)
+    proxy.stop()
+    assert closed == [sock]
+    assert proxy._unauthed_requests == set()

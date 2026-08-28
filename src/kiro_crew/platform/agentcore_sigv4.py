@@ -41,6 +41,11 @@ PROXY_SOCKET_TIMEOUT_SECS = 300.0
 # ThreadingHTTPServer is otherwise unbounded: one incomplete
 # Content-Length holds a thread until the process dies.
 PROXY_MAX_INFLIGHT = 16
+# Listener-thread join only. Authenticated handler slots drain
+# without this bound so a signed request finishes before Save
+# returns. Unauthed sockets are closed at stop so they cannot
+# pin a slot until PROXY_SOCKET_TIMEOUT_SECS.
+PROXY_STOP_DRAIN_SECS = 2.0
 # Per-boot token carried only in session-inject headers. Loopback is
 # same-host, not same-UID; without this the sandboxed agent can curl the
 # port and receive instance-role SigV4.
@@ -197,7 +202,11 @@ class GatewaySigV4Proxy:
         self.client_token = secrets.token_urlsafe(32)
         self._httpd: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
+        self._handler_slots: threading.BoundedSemaphore | None = None
         self._listen_url = ""
+        self._stopping = False
+        self._unauthed_lock = threading.Lock()
+        self._unauthed_requests: set[Any] = set()
 
     @property
     def listen_url(self) -> str:
@@ -211,8 +220,10 @@ class GatewaySigV4Proxy:
         """Bind the preferred loopback port (else ephemeral). Return the listen URL."""
         if self._httpd is not None:
             return self._listen_url
+        self._stopping = False
         handler = self._handler_class()
         preferred = preferred_bind_port()
+        proxy = self
 
         class _BoundedProxyServer(ThreadingHTTPServer):
             def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -220,13 +231,21 @@ class GatewaySigV4Proxy:
                 super().__init__(*args, **kwargs)
 
             def process_request(self, request: Any, client_address: Any) -> None:
+                if proxy._stopping:
+                    with contextlib.suppress(OSError):
+                        request.close()
+                    return
                 if not self._handler_slots.acquire(blocking=False):
                     with contextlib.suppress(OSError):
                         request.close()
                     return
+                with proxy._unauthed_lock:
+                    proxy._unauthed_requests.add(request)
                 try:
                     super().process_request(request, client_address)
                 except Exception:
+                    with proxy._unauthed_lock:
+                        proxy._unauthed_requests.discard(request)
                     self._handler_slots.release()
                     raise
 
@@ -234,6 +253,8 @@ class GatewaySigV4Proxy:
                 try:
                     super().process_request_thread(request, client_address)
                 finally:
+                    with proxy._unauthed_lock:
+                        proxy._unauthed_requests.discard(request)
                     self._handler_slots.release()
 
         class _PreferredServer(_BoundedProxyServer):
@@ -260,6 +281,7 @@ class GatewaySigV4Proxy:
         port = httpd.server_address[1]
         path = self._upstream.path or "/mcp"
         self._httpd = httpd
+        self._handler_slots = httpd._handler_slots
         self._listen_url = f"http://{PROXY_HOST}:{port}{path}"
         thread = threading.Thread(
             target=httpd.serve_forever,
@@ -271,6 +293,13 @@ class GatewaySigV4Proxy:
         return self._listen_url
 
     def stop(self) -> None:
+        self._stopping = True
+        with self._unauthed_lock:
+            pending = list(self._unauthed_requests)
+            self._unauthed_requests.clear()
+        for req in pending:
+            with contextlib.suppress(OSError):
+                req.close()
         httpd = self._httpd
         self._httpd = None
         self._listen_url = ""
@@ -282,7 +311,16 @@ class GatewaySigV4Proxy:
         thread = self._thread
         self._thread = None
         if thread is not None and thread.is_alive():
-            thread.join(timeout=2.0)
+            thread.join(timeout=PROXY_STOP_DRAIN_SECS)
+        slots = self._handler_slots
+        self._handler_slots = None
+        if slots is not None:
+            # No deadline: a signed request that outlives the listener
+            # join must still finish before Save → Off returns.
+            # Unauthed sockets were closed above so they cannot pin
+            # a slot until PROXY_SOCKET_TIMEOUT_SECS.
+            for _ in range(PROXY_MAX_INFLIGHT):
+                slots.acquire()
 
     def target_url(self, query: str) -> str:
         """Exact configured upstream + inbound query. Path is never client-chosen."""
@@ -329,6 +367,8 @@ class GatewaySigV4Proxy:
                 if not session_key or not _auth_token_matches(presented, expected):
                     self.send_error(401, "Unauthorized")
                     return
+                with proxy._unauthed_lock:
+                    proxy._unauthed_requests.discard(self.connection)
                 method = self.command.upper()
                 if method not in _ALLOWED_METHODS:
                     self.send_error(405, "Method Not Allowed")
@@ -478,12 +518,20 @@ def ensure_workload_proxy(upstream_url: str) -> str | None:
 
 
 def reset_workload_proxy() -> None:
-    """Stop the process-wide proxy. Tests only."""
+    """Stop the process-wide proxy and wait until the listener has drained.
+
+    ``HTTPServer.shutdown`` plus the listener join block. Callers on the
+    gateway loop (Settings PUT) must run this off the loop via
+    ``asyncio.to_thread`` so Save → Off cannot return while an in-flight
+    signed request still reaches Gateway.
+    """
     global _PROXY
     with _LOCK:
-        if _PROXY is not None:
-            _PROXY.stop()
-            _PROXY = None
+        proxy = _PROXY
+        _PROXY = None
+    if proxy is None:
+        return
+    proxy.stop()
 
 
 def workload_proxy_auth_token() -> str | None:
