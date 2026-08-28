@@ -2164,56 +2164,88 @@ def _register_mcp_servers(
     """
     if not manifest.mcpServers:
         return []
+    from kiro_crew.agent import _login_mcp_withhold
+
     resolved_port = _live_port_for(app_name, live_port)
     registered: list[str] = []
     skipped: list[str] = []
+    withheld = False
     # Reconcile guard OUTSIDE _mcp_lock: that order is fixed everywhere, so a health
     # transition and a lifecycle registration can never deadlock against each other.
+    # Withhold is evaluated inside the lock, immediately before write: login
+    # can flip after a pre-lock peek, and a stale False would put app MCP
+    # back over a just-withheld rebuild.
     with _health_reconcile_guard(), _mcp_lock():
-        mcp_data = _read_mcp_json_unlocked(strict=True)
-        servers = mcp_data.setdefault("mcpServers", {})
-        for server_name, server_config in manifest.mcpServers.items():
-            namespaced = f"{app_name}:{server_name}"
-            cfg = dict(server_config) if isinstance(server_config, dict) else server_config
-            if isinstance(cfg, dict):
-                cfg = _pin_host_cli_command(app_name, cfg)
-            is_http = isinstance(cfg, dict) and bool(cfg.get("url"))
-            if is_http and not resolved_port:
-                # No live backend → registering the manifest's dead default-port URL would
-                # break every kiro session. Skip it AND scrub any stale entry so a prior
-                # (now-dead) registration can't keep poisoning the provider path.
-                servers.pop(namespaced, None)
-                skipped.append(namespaced)
-                continue
-            if is_http:
-                cfg["url"] = _resolve_live_mcp_url(app_name, cfg["url"], live_port=resolved_port)
-                cfg.pop("disabled", None)  # backend is live — ensure enabled
-            else:
-                # A stdio entry: resolve a bare interpreter to an absolute one — the
-                # app's venv python when present, else the running interpreter (see
-                # `resolve_stdio_command`) — and surface an unresolvable command
-                # instead of letting the tools go silently missing.
+        if _login_mcp_withhold():
+            mcp_data = _read_mcp_json_unlocked(strict=True)
+            servers = mcp_data.setdefault("mcpServers", {})
+            for server_name in manifest.mcpServers:
+                servers.pop(f"{app_name}:{server_name}", None)
+            mcp_data["mcpServers"] = dict(strip_ungoverned_auto_approve(servers))
+            _write_mcp_json_unlocked(mcp_data)
+            withheld = True
+        else:
+            mcp_data = _read_mcp_json_unlocked(strict=True)
+            servers = mcp_data.setdefault("mcpServers", {})
+            for server_name, server_config in manifest.mcpServers.items():
+                namespaced = f"{app_name}:{server_name}"
+                cfg = (
+                    dict(server_config)
+                    if isinstance(server_config, dict)
+                    else server_config
+                )
                 if isinstance(cfg, dict):
-                    cfg = resolve_stdio_command(cfg, app_root=app_dir(app_name))
-                    _schedule_unresolvable_warning(app_name, server_name, cfg)
-                    # This file is consumed by kiro-cli, which applies a declared
-                    # env per key — an app manifest naming a PATH fragment would
-                    # hand its server that fragment as the WHOLE PATH. Emit
-                    # through the shared normalization point (env.emit_env).
-                    env = cfg.get("env")
-                    if isinstance(env, dict):
-                        cfg = {**cfg, "env": emit_env(env)}
-            servers[namespaced] = cfg
-            registered.append(namespaced)
-        # LAST governance pass before this map hits disk. This file IS read by
-        # kiro-cli, and an `autoApprove` on an entry here auto-approves that
-        # server locally with NO permission request — so a manifest that ships
-        # `autoApprove` on a governed server would bypass the PreToolUse gate and
-        # the ceiling's denial, the same second route the agent-config writers
-        # already close. Strip a governed grant here too; the tools stay, they
-        # just go through the gate. Idempotent and a no-op on an ungoverned host.
-        mcp_data["mcpServers"] = dict(strip_ungoverned_auto_approve(servers))
-        _write_mcp_json_unlocked(mcp_data)
+                    cfg = _pin_host_cli_command(app_name, cfg)
+                is_http = isinstance(cfg, dict) and bool(cfg.get("url"))
+                if is_http and not resolved_port:
+                    # No live backend → registering the manifest's dead default-port
+                    # URL would break every kiro session. Skip it AND scrub any
+                    # stale entry so a prior (now-dead) registration can't keep
+                    # poisoning the provider path.
+                    servers.pop(namespaced, None)
+                    skipped.append(namespaced)
+                    continue
+                if is_http:
+                    cfg["url"] = _resolve_live_mcp_url(
+                        app_name, cfg["url"], live_port=resolved_port
+                    )
+                    cfg.pop("disabled", None)  # backend is live — ensure enabled
+                else:
+                    # A stdio entry: resolve a bare interpreter to an absolute
+                    # one — the app's venv python when present, else the running
+                    # interpreter (see `resolve_stdio_command`) — and surface an
+                    # unresolvable command instead of letting the tools go
+                    # silently missing.
+                    if isinstance(cfg, dict):
+                        cfg = resolve_stdio_command(cfg, app_root=app_dir(app_name))
+                        _schedule_unresolvable_warning(app_name, server_name, cfg)
+                        # This file is consumed by kiro-cli, which applies a
+                        # declared env per key — an app manifest naming a PATH
+                        # fragment would hand its server that fragment as the
+                        # WHOLE PATH. Emit through the shared normalization
+                        # point (env.emit_env).
+                        env = cfg.get("env")
+                        if isinstance(env, dict):
+                            cfg = {**cfg, "env": emit_env(env)}
+                servers[namespaced] = cfg
+                registered.append(namespaced)
+            # LAST governance pass before this map hits disk. This file IS read
+            # by kiro-cli, and an `autoApprove` on an entry here auto-approves
+            # that server locally with NO permission request — so a manifest
+            # that ships `autoApprove` on a governed server would bypass the
+            # PreToolUse gate and the ceiling's denial, the same second route
+            # the agent-config writers already close. Strip a governed grant
+            # here too; the tools stay, they just go through the gate.
+            # Idempotent and a no-op on an ungoverned host.
+            mcp_data["mcpServers"] = dict(strip_ungoverned_auto_approve(servers))
+            _write_mcp_json_unlocked(mcp_data)
+    if withheld:
+        logger.info(
+            "Skipped MCP registration for app %s; login posture withholds "
+            "non-managed servers",
+            app_name,
+        )
+        return []
     logger.info(
         "Registered %d MCP server(s) for app %s (live_port=%s); skipped %d HTTP server(s) "
         "with no live backend: %s",

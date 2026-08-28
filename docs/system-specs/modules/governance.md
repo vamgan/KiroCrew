@@ -2157,7 +2157,46 @@ is a known value. The public `DefaultAgentIdentityProvider` is disabled, so a
 standalone host with no policy is unchanged. Standalone boot may swap
 `agent_identity` for the optional AWS adapter when that extra is opted in.
 Workload rebuild / `session/new` consult this row for Gateway MCP inject
-onto a localhost SigV4 proxy. Login attach is a later stack PR. Naming the
+onto a localhost SigV4 proxy. Login posture writes a per-session `0600`
+inbound sidecar (JWT or URL-only OAuth challenge) after bind — an
+already-expired JWT is treated as absent, not written — withholds
+non-managed MCP from the emitted `--agent` spec at rebuild and from
+`_register_mcp_servers`, which re-evaluates that gate inside `_mcp_lock`
+immediately before write so a concurrent login flip cannot restore app
+MCP (a governance or posture lookup error withholds; an explicit
+capability denial or a confirmed non-login posture does not)
+(authored
+leftovers are stashed to owner-only `agentcore-authored-mcp/stash.json` and
+restored when posture leaves login; a later login rebuild merges the
+live extract into that sidecar and keeps `@server/tool` refs whose
+server name is still present; a current live-source dest is not overwritten by a stale stash
+(an operator edit during login survives; live specs use the same
+app-assign / global-setdefault / crew-update merge as rebuild);
+stash still fills a dest
+spec that is not that live source — only a sibling alias takeover
+drops the leftover command and its prior `@name` refs; an explicit
+empty `sourceServers` is "no live sources" (a deleted source plus a
+same-name agent override must not inherit the prior ownership list,
+or restore treats the override as a vanished source and drops it);
+the prior list is kept only when the key is absent; source
+`mcp.json` is never write-through), and never attaches for unattended
+sessions. Unattended is the default: `cli_chat` binds as a human;
+`dashboard:` / channel-namespace *spellings* bind as a human only
+when a matching staged turn or live login sidecar proves the key
+(`ctx.agent(session="slack:forged")` stays unattended). A custom
+`ctx.agent(..., session="custom")` key, `channel:` /
+`meetings-` / `wf:` / cron / TaskRunner / hook / subagent are
+unattended. Workload user/OBO still needs a vaulted owner token
+even when the key looks interactive. Consent URLs are allowlisted through
+`security.allow_agentcore_consent_url` (the operator-OAuth keystone plus
+the builtin set). `consent_snapshot` evaluates `_identity_on(HOST_SESSION_KEY)`
+so a `surface:host` AgentCore deny cannot return a live URL through the
+unknown surface an empty key would classify as. Catalog inspect and the
+consent GET both go through `surface_consent_url`, which SEL-audits grant
+and deny (host+path only, never token bytes). A nonempty query requires
+both `client_id` and `redirect_uri` bound (`redirect_uri` to loopback
+http(s), `client_id` to that operator entry's `client_ids`); a
+query-bearing builtin URL is refused. Naming the
 row here is what lets a policy pin the capability before those chokepoints
 land.
 
