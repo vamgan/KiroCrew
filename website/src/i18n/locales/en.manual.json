@@ -1319,12 +1319,9 @@
       },
       "installedAppCard": {
         "app_cannot_be_opened_kirocrew_is_running_in_a_he": "App cannot be opened — {{productName}} is running in a headless environment.",
-        "collapse_details": "Collapse details",
         "disable": "Disable",
-        "disabled": "Disabled",
         "enable": "Enable",
         "enabled": "Enabled",
-        "expand_details": "Expand details",
         "update_to": "Update to v{{version}}"
       },
       "sourcesPopover": {
@@ -3776,6 +3773,19 @@
         "load_failed": "Failed to load settings.",
         "retry": "Retry"
       }
+    },
+    "libraryPage": {
+      "pin": "Pin",
+      "pin_to_sidebar": "Pin {{name}} to the sidebar",
+      "tile_actions": "Actions for {{name}}",
+      "tile_details": "Details",
+      "tile_disabled": "Disabled",
+      "tile_more_actions": "More actions for {{name}}",
+      "tile_no_sidebar_page": "No sidebar page",
+      "tile_pinned": "In sidebar",
+      "tile_unpinned": "Not in sidebar",
+      "unpin": "Unpin",
+      "unpin_from_sidebar": "Unpin {{name}} from the sidebar"
     },
     "logsPage": {
       "latest_first": "Latest: first",

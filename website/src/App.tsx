@@ -31,6 +31,7 @@ import { useSidePanelDock } from './hooks/useSidePanelDock'
 import { usePreviewFlagRevision } from './hooks/usePreviewFlag'
 import { setRailWidth, railWidthFor } from './hooks/useRailWidth'
 import { useFocusMode, useFocusChromeVisible, setFocusChromeVisible, FOCUS_INSET } from './hooks/useFocusMode'
+import { buildReorderBaseline, mergeVisibleReorder, useAppNavHidden } from './lib/appNavHidden'
 import { computeHeaderDragGaps, type DragGap } from './lib/dragGaps'
 import { isEmbeddedPane } from './lib/embedded'
 import { useHoverIntent } from './hooks/useHoverIntent'
@@ -1438,6 +1439,12 @@ export default function App() {
   // Dynamic app nav items — all apps (builtin + installed) with UI pages
   const [appNavItems, setAppNavItems] = useState<Array<{ path: string; id: string; label: string; group: string; icon: React.ReactElement }>>([])
   const [appNavOrder, setAppNavOrder] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem('mc-app-nav-order') || '[]') } catch { return [] } })
+  // Which app rows the user UNPINNED from the sidebar via the Library
+  // launchpad grid (`mc-app-nav-hidden`, owned by `lib/appNavHidden.ts`).
+  // The shared hook keeps this live under both propagation paths (same-tab
+  // change event + cross-tab `storage`), so a pin toggle in LibraryPage
+  // re-renders the rail immediately.
+  const appNavHidden = useAppNavHidden()
   // Preview-gated surfaces (see `utils/previewFlags.ts`) must not be advertised
   // anywhere. `surfacePreviewEnabled` is a synchronous storage read, so the rail
   // needs this subscription to re-render when Developer > Feature Previews flips a flag —
@@ -1480,12 +1487,32 @@ export default function App() {
   const APPS_NAV_LIMIT = 6
   const [appsExpanded, setAppsExpanded] = useState(() => localStorage.getItem('mc-apps-expanded') === '1')
   const toggleAppsExpanded = useCallback(() => setAppsExpanded(v => { const next = !v; safeSetItem('mc-apps-expanded', next ? '1' : '0'); return next }), [])
-  const sortedAppGroup = useMemo(() => {
-    const items = [...advertisedNavItems.filter(n => n.group === 'Apps'), ...appNavItems]
-    if (appNavOrder.length === 0) return items
+  const { sortedAppGroup, sortedAppGroupAllIds } = useMemo(() => {
+    // Drop rows the user unpinned in the Library launchpad BEFORE the
+    // APPS_NAV_LIMIT slice downstream, so a hidden row never consumes a
+    // visible slot. The hidden set only ever contains ids written by the
+    // Library grid — `appNavTarget(app).id` values, byte-identical to the
+    // ids these rows carry — so set membership can only hide grid-managed
+    // app rows. The Discover/Library built-ins are not list rows here
+    // (`hiddenFromNav`, rendered as the section-header accent links) and
+    // can never be filtered out by this.
+    //
+    // `sortedAppGroupAllIds` is the same effective order WITHOUT the hidden
+    // filter — what the rail would show if everything were pinned. It seeds
+    // the drag-reorder merge so a hidden app's position survives even when
+    // `mc-app-nav-order` is empty or has never listed it (its slot is then
+    // implicit in this natural order, and persisting only the visible ids
+    // would erase it).
+    const all = [...advertisedNavItems.filter(n => n.group === 'Apps'), ...appNavItems]
     const orderMap = new Map(appNavOrder.map((id, i) => [id, i]))
-    return items.sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999))
-  }, [advertisedNavItems, appNavItems, appNavOrder])
+    const sortedAll = appNavOrder.length === 0
+      ? all
+      : [...all].sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999))
+    return {
+      sortedAppGroupAllIds: sortedAll.map(n => n.id),
+      sortedAppGroup: sortedAll.filter(n => !appNavHidden.has(n.id)),
+    }
+  }, [advertisedNavItems, appNavItems, appNavOrder, appNavHidden])
   const handleAppDragStart = useCallback((e: DragStartEvent) => setActiveAppDragId(e.active.id as string), [])
   const handleAppDragEnd = useCallback((e: DragEndEvent) => {
     setActiveAppDragId(null)
@@ -1495,10 +1522,19 @@ export default function App() {
     const from = ids.indexOf(active.id as string)
     const to = ids.indexOf(over.id as string)
     if (from < 0 || to < 0) return
-    const next = arrayMove(ids, from, to)
+    const moved = arrayMove(ids, from, to)
+    // `sortedAppGroup` excludes hidden (unpinned) rows, so persisting `moved`
+    // alone would ERASE a hidden app's slot — re-pinning would dump it at the
+    // end. The baseline is the persisted order UNION the current effective
+    // order: the persisted array can remember ids with no current nav row at
+    // all (a hidden app that is temporarily DISABLED has no appNavItems
+    // entry), and the effective tail carries never-reordered apps whose slot
+    // is only implicit (see buildReorderBaseline / mergeVisibleReorder).
+    const next = mergeVisibleReorder(
+      buildReorderBaseline(appNavOrder, sortedAppGroupAllIds), ids, moved)
     setAppNavOrder(next)
     safeSetItem('mc-app-nav-order', JSON.stringify(next))
-  }, [sortedAppGroup])
+  }, [sortedAppGroup, sortedAppGroupAllIds, appNavOrder])
   // Drag cancel (e.g. Escape) fires onDragCancel, NOT onDragEnd — clear the
   // active id here too, else the source row stays dimmed and the overlay ghost
   // lingers. Mirrors ChatSidebar's handleSidebarDragCancel.
