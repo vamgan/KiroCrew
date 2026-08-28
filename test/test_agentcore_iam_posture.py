@@ -18,7 +18,6 @@ _WORKLOAD_ID_WILDCARD = (
     "arn:aws:bedrock-agentcore:*:*:workload-identity-directory/default/workload-identity/kirocrew-*"
 )
 _WORKLOAD_RESOURCES = [_WORKLOAD_DIR, _WORKLOAD_ID, _WORKLOAD_ID_WILDCARD]
-_GATEWAY = "arn:aws:bedrock-agentcore:*:*:gateway/kirocrew-*"
 
 # Byte-stable original boundary: SSM-core + source-bucket read, no AgentCore.
 _ORIGINAL_BOUNDARY_SIDS = frozenset({"SsmCore", "SourceBucketRead"})
@@ -73,7 +72,7 @@ def test_launcher_create_role_accepts_either_boundary() -> None:
     assert f"arn:aws:iam::*:policy/{iam.AGENTCORE_BOUNDARY_NAME}" in values
 
 
-def test_launcher_create_once_covers_successor_name() -> None:
+def test_launcher_create_once_omits_successor_name() -> None:
     st = _statement_by_sid(iam.policy_document(), "IamInstanceBoundaryCreateOnce")
     assert set(st["Action"]) == {
         "iam:CreatePolicy",
@@ -81,9 +80,16 @@ def test_launcher_create_once_covers_successor_name() -> None:
         "iam:GetPolicyVersion",
     }
     resources = _resources(st)
-    assert f"arn:aws:iam::*:policy/{iam.BOUNDARY_NAME}" in resources
-    assert f"arn:aws:iam::*:policy/{iam.AGENTCORE_BOUNDARY_NAME}" in resources
+    assert resources == [f"arn:aws:iam::*:policy/{iam.BOUNDARY_NAME}"]
+    assert f"arn:aws:iam::*:policy/{iam.AGENTCORE_BOUNDARY_NAME}" not in resources
     assert not any(r.endswith("*") for r in resources)
+
+
+def test_launcher_reads_successor_boundary_without_create() -> None:
+    st = _statement_by_sid(iam.policy_document(), "IamAgentCoreBoundaryRead")
+    assert set(st["Action"]) == {"iam:GetPolicy", "iam:GetPolicyVersion"}
+    assert "iam:CreatePolicy" not in st["Action"]
+    assert _resources(st) == [f"arn:aws:iam::*:policy/{iam.AGENTCORE_BOUNDARY_NAME}"]
 
 
 def test_workload_instance_document_denies_for_jwt() -> None:
@@ -92,14 +98,13 @@ def test_workload_instance_document_denies_for_jwt() -> None:
     assert identity["Effect"] == "Allow"
     assert _actions(identity) == {
         "bedrock-agentcore:GetWorkloadAccessToken",
-        "bedrock-agentcore:GetWorkloadAccessTokenForUserId",
     }
     assert _resources(identity) == _WORKLOAD_RESOURCES
 
-    gateway = _statement_by_sid(doc, "AgentCoreGateway")
-    assert gateway["Effect"] == "Allow"
-    assert _actions(gateway) == {"bedrock-agentcore:InvokeGateway"}
-    assert _resources(gateway) == [_GATEWAY]
+    assert all(s["Sid"] != "AgentCoreGateway" for s in doc["Statement"])
+    for st in doc["Statement"]:
+        if st["Effect"] == "Allow":
+            assert "InvokeGateway" not in _actions(st)
 
     deny = _statement_by_sid(doc, "DenyJwtPathOnWorkloadPosture")
     assert deny["Effect"] == "Deny"
@@ -112,7 +117,6 @@ def test_workload_instance_document_denies_for_jwt() -> None:
         "bedrock-agentcore:GetGateway",
         "bedrock-agentcore:ListGatewayTargets",
         "bedrock-agentcore:GetGatewayTarget",
-        "bedrock-agentcore:SynchronizeGatewayTargets",
     }
     assert _resources(inspect) == ["arn:aws:bedrock-agentcore:*:*:gateway/*"]
 
@@ -176,14 +180,14 @@ def test_successor_boundary_is_union_ceiling() -> None:
         dumped = json.dumps(doc)
         for action in (
             "bedrock-agentcore:GetWorkloadAccessToken",
-            "bedrock-agentcore:GetWorkloadAccessTokenForUserId",
             "bedrock-agentcore:GetWorkloadAccessTokenForJWT",
-            "bedrock-agentcore:InvokeGateway",
             "bedrock-agentcore:GetGateway",
             "bedrock-agentcore:ListGatewayTargets",
-            "bedrock-agentcore:SynchronizeGatewayTargets",
         ):
             assert action in dumped
+        assert "InvokeGateway" not in dumped
+        assert "GetWorkloadAccessTokenForUserId" not in dumped
+        assert "SynchronizeGatewayTargets" not in dumped
         inspect = _statement_by_sid(doc, "AgentCoreInspectCeiling")
         assert _resources(inspect) == ["arn:aws:bedrock-agentcore:*:*:gateway/*"]
         s3 = _statement_by_sid(doc, "SourceBucketRead")
@@ -213,8 +217,10 @@ def test_template_instance_policies_include_inspect() -> None:
     text = ec2.load_template()
     assert text.count("AgentCoreGatewayInspect") >= 2
     assert "bedrock-agentcore:GetGateway" in text
-    assert "bedrock-agentcore:SynchronizeGatewayTargets" in text
+    assert "bedrock-agentcore:GetGatewayTarget" in text
+    assert "SynchronizeGatewayTargets" not in text
     assert "gateway/*" in text
+    assert "Action: [bedrock-agentcore:InvokeGateway]" not in text
 
 
 @pytest.mark.asyncio
@@ -251,7 +257,9 @@ async def test_iam_policy_api_returns_labeled_instance_sibling(
     assert "InvokeGateway" not in body["policy"]
     instance = json.loads(body["instance_policy"])
     assert body["instance_posture"] == "workload"
-    assert any("InvokeGateway" in json.dumps(s) for s in instance["Statement"])
+    for st in instance["Statement"]:
+        if st["Effect"] == "Allow":
+            assert "InvokeGateway" not in json.dumps(st)
 
 
 def test_cli_iam_policy_instance_flag(capsys: pytest.CaptureFixture[str]) -> None:
@@ -273,3 +281,37 @@ def test_cli_iam_policy_instance_requires_posture(capsys: pytest.CaptureFixture[
     captured = capsys.readouterr()
     assert "InvokeGateway" not in captured.out
     assert "InvokeGateway" not in captured.err
+
+
+def test_iam_boundary_agentcore_selector_passes_successor_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from kiro_crew import cli_cloud
+
+    seen: dict[str, Any] = {}
+
+    def _ensure(profile: str, region: str, *, name: str | None = None) -> str:
+        seen["name"] = name
+        return f"arn:aws:iam::1:policy/{iam.AGENTCORE_BOUNDARY_NAME}"
+
+    monkeypatch.setattr(cli_cloud, "_resolve", lambda _args: ("dev", "us-east-1"))
+    monkeypatch.setattr("kiro_crew.cloud.source.ensure_instance_boundary", _ensure)
+    ns = type("NS", (), {"agentcore": True, "profile": "dev", "region": "us-east-1"})()
+    assert cli_cloud._cloud_iam_boundary(ns) == 0
+    assert seen["name"] == iam.AGENTCORE_BOUNDARY_NAME
+
+
+def test_iam_boundary_default_creates_original_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    from kiro_crew import cli_cloud
+
+    seen: dict[str, Any] = {}
+
+    def _ensure(profile: str, region: str, *, name: str | None = None) -> str:
+        seen["name"] = name
+        return f"arn:aws:iam::1:policy/{iam.BOUNDARY_NAME}"
+
+    monkeypatch.setattr(cli_cloud, "_resolve", lambda _args: ("dev", "us-east-1"))
+    monkeypatch.setattr("kiro_crew.cloud.source.ensure_instance_boundary", _ensure)
+    ns = type("NS", (), {"agentcore": False, "profile": "dev", "region": "us-east-1"})()
+    assert cli_cloud._cloud_iam_boundary(ns) == 0
+    assert seen["name"] is None
