@@ -44,8 +44,17 @@ export const CHUNK_BUDGETS = {
   // The built-in App Store guidance adds one use-case and one configuration
   // string for each of 23 apps across all 12 shipped catalogs. The Dev Fleet
   // closed-PR prune group adds five user-visible strings across the same 12
-  // catalogs, which is the last increment that pushed this past 9750 KB.
-  all: 9800 * KB, // measured 9758 KB after Dev Fleet closed-PR prune catalog keys
+  // catalogs, which is the increment that first pushed this past 9750 KB.
+  //
+  // The Drive gallery then added its own keys across 13 catalogs. Both sides
+  // arrived at 9800 independently, which is the point worth recording: main had
+  // been sitting at EXACTLY 9750.0 KB against its own 9750 KB ceiling, so the
+  // next translated string from any branch was going to fail this gate whatever
+  // it said. Neither increment is a library or a new surface -- both are catalog
+  // text, and no import() boundary can move strings the shipped languages need
+  // eagerly. Headroom is deliberate but kept TIGHT: a large gap would be
+  // library-sized on a gate whose whole job is noticing a library arrive.
+  all: 9800 * KB, // measured 9773 KB: Dev Fleet prune + Drive gallery keys
 
   // The i18n RUNTIME — the i18next singleton, `initI18n`, the English catalog —
   // named after `src/i18n/t.ts`. Held separately from `all` above because
