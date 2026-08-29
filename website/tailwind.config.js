@@ -188,16 +188,20 @@ export default {
         'gradient-shift': { '0%': { backgroundPosition: '0% 50%' }, '50%': { backgroundPosition: '100% 50%' }, '100%': { backgroundPosition: '0% 50%' } },
         'msg-highlight': { '0%': { boxShadow: 'inset 0 0 0 2px var(--accent)' }, '100%': { boxShadow: 'inset 0 0 0 0px transparent' } },
         float: { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-6px)' } },
-        /* margin-based (NOT transform): a transformed ancestor becomes a
-           backdrop root and breaks descendants' backdrop-filter blur.
-           Desktop is a fixed 400px sheet, so a px offset clears it. Mobile is
-           full-width up to the 767px breakpoint, where -420px would leave the
-           sheet half on screen — percentage margins resolve against the
-           containing block's width, so -100% always clears it exactly. */
-        'nc-slide-in': { from: { marginRight: '-420px' }, to: { marginRight: '0px' } },
-        'nc-slide-out': { from: { marginRight: '0px' }, to: { marginRight: '-420px' } },
-        'nc-slide-in-full': { from: { marginRight: '-100%' }, to: { marginRight: '0px' } },
-        'nc-slide-out-full': { from: { marginRight: '0px' }, to: { marginRight: '-100%' } },
+        /* transform-based (NOT margin): margin is a layout property, so a
+           margin keyframe reflows the sheet AND its subtree on the main
+           thread every frame — the same jank class as the old right-panel
+           width animation. transform runs on the compositor. An earlier
+           comment here claimed a transformed ancestor becomes a backdrop
+           root and breaks descendants' backdrop-filter; a pixel probe
+           (Chromium, card blur measured mid-animation under a transformed
+           ancestor) disproved that — transform is not in the backdrop-root
+           trigger list. translateX percentages resolve against the element's
+           OWN width, so one pair of keyframes covers both the desktop 400px
+           sheet and the mobile full-width sheet; +20px clears the sensor-
+           housing gutter the sheet keeps beside the viewport edge. */
+        'nc-slide-in': { from: { transform: 'translateX(calc(100% + 20px))' }, to: { transform: 'translateX(0)' } },
+        'nc-slide-out': { from: { transform: 'translateX(0)' }, to: { transform: 'translateX(calc(100% + 20px))' } },
       },
       animation: {
         'sage-sweep': 'sage-sweep 1.4s ease-in-out infinite',
@@ -219,10 +223,14 @@ export default {
         'gradient-shift': 'gradient-shift 20s ease infinite',
         'msg-highlight': 'msg-highlight 2s ease-out forwards',
         float: 'float 3s ease-in-out infinite',
-        'nc-slide-in': 'nc-slide-in .32s cubic-bezier(.16,1,.3,1) backwards',
+        /* Asymmetric by direction: iOS's sheet curve arriving, an easeIN
+           dismissal leaving. The drawer settles in `hooks/useDrawerSwipe.ts`
+           carry the SAME two curves and durations (`SETTLE_IN_EASE` /
+           `SETTLE_OUT_EASE`) so every sliding panel in the app shares one motion
+           language — move both or neither. `NC_CLOSE_MS` in App.tsx is the
+           unmount timer paired with the .24s exit. */
+        'nc-slide-in': 'nc-slide-in .42s cubic-bezier(.32,.72,0,1) backwards',
         'nc-slide-out': 'nc-slide-out .24s cubic-bezier(.3,0,.8,.15) forwards',
-        'nc-slide-in-full': 'nc-slide-in-full .32s cubic-bezier(.16,1,.3,1) backwards',
-        'nc-slide-out-full': 'nc-slide-out-full .24s cubic-bezier(.3,0,.8,.15) forwards',
       },
     },
   },

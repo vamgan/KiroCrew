@@ -2138,6 +2138,20 @@ interface ChatSidebarProps {
    *  When provided, this fires AFTER the switchSlot dispatch so consumers
    *  can react to user-driven selection (e.g. to navigate the URL). */
   onSelectSlot?: (key: string) => void
+  /**
+   * Render session rows WITHOUT Framer layout projection (`layout`/`layoutId`).
+   *
+   * Set by the mobile sessions drawer, whose slide runs on the COMPOSITOR
+   * (WAAPI — see `registerDrawerTargets` in useDrawerSwipe). Projection only
+   * stays correct while framer owns every animated ancestor transform: under a
+   * compositor-driven ancestor it attributes the panel's travel to the rows
+   * themselves and compounds a corrective transform per re-measure (measured
+   * >4,000px — the rows visibly flew in from the panel's right edge). The rows
+   * are the sidebar's ONLY projection nodes, so this one switch is the whole
+   * containment. Costs on mobile: reorders/pin moves snap instead of glide,
+   * and the flat↔tree toggle loses its row-morph continuity.
+   */
+  staticRows?: boolean
   /** Open a session as a TAB on the host surface instead of switching to it,
    *  bound to middle-click, modifier-click and the row menu's "Open in a session
    *  tab".
@@ -2284,7 +2298,7 @@ interface FilterDimension {
 function ChatSidebar({
   slots, activeSlot, unreadSlots, history, historyHasMore,
   defaultAgent, installedAgents, mode, onWidthChange, onDragChange, onSelectSlot, onOpenSlotInNewTab, onOpenSource, collapsible,
-  chatDropTarget, onDropSessionRef,
+  chatDropTarget, onDropSessionRef, staticRows,
 }: ChatSidebarProps) {
   useLanguageGeneration() // memo() bails out of the provider-level repaint; subscribe directly
   const dispatch = useAppDispatch()
@@ -4609,7 +4623,12 @@ function ChatSidebar({
         isRenaming={renamingSlot === s.key} renamingHere={renamingHere}
         renameValue={renamingHere ? renameValue : ''}
         revealFlash={revealFlash?.key === s.key ? (revealFlash.fading ? 'fade' : 'flash') : null}
-        dragInFlight={!!activeDrag} rowAnimEnabled={rowAnimEnabled}
+        dragInFlight={!!activeDrag}
+        // staticRows (the compositor drawer) folds into the one row-animation
+        // gate: projection under a WAAPI-driven ancestor mis-attributes the
+        // panel's motion to the rows, so the drawer disables row animation
+        // wholesale rather than growing SessionRow a second switch.
+        rowAnimEnabled={rowAnimEnabled && !staticRows}
         defaultAgent={defaultAgent} mode={mode} isMobile={isMobile} colorMode={colorMode}
         installedAgents={installedAgents} tagById={tagById}
         paletteColors={paletteColors} boost={boost} boostFor={boostFor}

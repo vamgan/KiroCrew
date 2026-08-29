@@ -51,7 +51,11 @@ import AgentImportFlow from './components/AgentImportFlow'
 import PrivacyChapter from './components/PrivacyChapter'
 import { OnboardingShellHost } from './components/OnboardingChapterShell'
 import { PREVIEW_EXPAND_EVENT } from './components/WebPreviewPanel'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue } from 'framer-motion'
+import { animateDrawer, registerDrawerTargets, takeOverDrawer } from './hooks/useDrawerSwipe'
+
+/** Mobile nav drawer travel: its 220px width + the 8px mx-2 inset + border. */
+const MOBILE_NAV_TRAVEL = 240
 import { usePersistedBool } from './hooks/usePersistedBool'
 import { isMacElectron, isWinElectron, isLinuxFramelessElectron } from './lib/electron'
 import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay, type DragStartEvent, type DragEndEvent } from '@dnd-kit/core'
@@ -543,11 +547,18 @@ function NavItem({ path, label, icon, active, collapsed, badge, onClickOverride,
   pressed?: boolean
 }) {
   const navigate = useNavigate()
+  // On mobile this row lives inside the nav DRAWER, whose slide runs on the
+  // compositor (animateDrawer) — and a framer layout-projection node under a
+  // compositor-driven ancestor transform mis-attributes the panel's travel to
+  // itself, compounding a corrective offset (the ChatSidebar rows measured
+  // >4,000px of it). The desktop rail is framer-free motion-wise, so it keeps
+  // the row-reorder glide that `layout` buys there.
+  const isMobileRow = useIsMobile()
   const iconEl = <span className={`app-icon-nav w-4 h-4 flex items-center justify-center shrink-0 transition-opacity ${active ? 'opacity-100 text-accent is-lit' : 'opacity-70'}`}>{icon}</span>
   const { tip, tipOn, rowRef, showTip, hideTip } = useNavTip<HTMLDivElement>(collapsed)
   const activate = () => { onClick?.(); (onClickOverride || (() => navigate(path)))() }
   return (
-    <motion.div layout="position"
+    <motion.div layout={isMobileRow ? undefined : 'position'}
       ref={rowRef}
       data-onboarding-nav={navId}
       // role+tabIndex+key handler make this a real keyboard-operable control
@@ -772,11 +783,10 @@ function NotificationsBellButton() {
   const leavingProps = (closing
     ? { inert: '', 'aria-hidden': true }
     : {}) as HTMLAttributes<HTMLDivElement>
-  // Desktop slides a fixed 400px sheet by px; mobile is full-width, so it needs
-  // the percentage variant (see the keyframe comment in tailwind.config.js).
-  const sheetAnim = closing
-    ? (isMobile ? 'animate-nc-slide-out-full' : 'animate-nc-slide-out')
-    : (isMobile ? 'animate-nc-slide-in-full' : 'animate-nc-slide-in')
+  // One transform keyframe pair covers both widths: translateX percentages
+  // resolve against the element's own width (400px desktop sheet, full-width
+  // mobile), so the old px/percent variant split is gone.
+  const sheetAnim = closing ? 'animate-nc-slide-out' : 'animate-nc-slide-in'
 
   // Close popover when navigating (e.g. detail panel's "Go to Chat" buttons)
   const lastPathRef = useRef(location.pathname)
@@ -1432,7 +1442,46 @@ export default function App() {
     const t = window.setTimeout(() => setShellEntered(true), 600)
     return () => window.clearTimeout(t)
   }, [])
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  /**
+   * Mobile nav drawer, as ONE phase value (mirrors ChatPage's sessions drawer):
+   * `closing` keeps the panel mounted while it slides out. The slide itself
+   * runs on the COMPOSITOR via animateDrawer — the shell shares its main
+   * thread with every streaming session, so a framer main-thread tween here
+   * dropped frames exactly when the app was busiest. The width used by the
+   * offset is the drawer's own 220px + its 8px inset, not the viewport.
+   */
+  const [mobileNavPhase, setMobileNavPhase] = useState<'closed' | 'open' | 'closing'>('closed')
+  const mobileNavMounted = mobileNavPhase !== 'closed'
+  const mobileNavPhaseRef = useRef(mobileNavPhase)
+  mobileNavPhaseRef.current = mobileNavPhase
+  /** Panel offset in px: -MOBILE_NAV_TRAVEL offscreen, 0 at rest. */
+  const mobileNavX = useMotionValue(0)
+  const mobileNavPanelRef = useRef<HTMLElement | null>(null)
+  const mobileNavScrimRef = useRef<HTMLDivElement | null>(null)
+  // Safe against the projection bug only because the drawer's nav rows drop
+  // their `layout` prop on mobile — see registerDrawerTargets' precondition.
+  useEffect(() => registerDrawerTargets(mobileNavX, {
+    panel: () => mobileNavPanelRef.current,
+    scrim: () => mobileNavScrimRef.current,
+    travel: () => MOBILE_NAV_TRAVEL,
+  }), [mobileNavX])
+  const openMobileNav = useCallback(() => {
+    if (mobileNavPhaseRef.current === 'open') return
+    if (mobileNavPhaseRef.current === 'closed') mobileNavX.set(-MOBILE_NAV_TRAVEL)
+    mobileNavPhaseRef.current = 'open'
+    setMobileNavPhase('open')
+    animateDrawer(mobileNavX, 0)
+  }, [mobileNavX])
+  const closeMobileNavDrawer = useCallback(() => {
+    if (mobileNavPhaseRef.current !== 'open') return
+    mobileNavPhaseRef.current = 'closing'
+    setMobileNavPhase('closing')
+    takeOverDrawer(mobileNavX)
+    animateDrawer(mobileNavX, -MOBILE_NAV_TRAVEL, () => {
+      mobileNavPhaseRef.current = 'closed'
+      setMobileNavPhase('closed')
+    })
+  }, [mobileNavX])
 
   // Dynamic app nav items — all apps (builtin + installed) with UI pages
   const [appNavItems, setAppNavItems] = useState<Array<{ path: string; id: string; label: string; group: string; icon: React.ReactElement }>>([])
@@ -2263,7 +2312,7 @@ export default function App() {
   }, [dispatch, navigate, colorTheme, appStore])
 
   const toggleNav = () => {
-    if (isMobile) { setMobileNavOpen(p => !p) }
+    if (isMobile) { if (mobileNavPhaseRef.current === 'open') closeMobileNavDrawer(); else openMobileNav() }
     else if (focusActive) {
       // The rail is a hover-held overlay in focus mode and always full width, so
       // there is no collapsed state to toggle into. The same control puts it away
@@ -2278,9 +2327,19 @@ export default function App() {
     }
   }
   // Close mobile nav on route change
-  useEffect(() => { if (isMobile) setMobileNavOpen(false) }, [location.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (isMobile) closeMobileNavDrawer() }, [location.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Escape closes the open drawer — the keyboard's dismissal path. The scrim's
+  // click-to-dismiss is pointer-only (it is aria-hidden and unfocusable, so a
+  // full-screen tab stop never appears in the tab order).
+  useEffect(() => {
+    if (!isMobile || mobileNavPhase !== 'open') return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMobileNavDrawer() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [isMobile, mobileNavPhase, closeMobileNavDrawer])
   // Reset mobile nav state when leaving mobile viewport
-  useEffect(() => { if (!isMobile) setMobileNavOpen(false) }, [isMobile])
+  // Leaving mobile: drop the panel with no slide (no drawer exists on desktop).
+  useEffect(() => { if (!isMobile) { setMobileNavPhase('closed'); takeOverDrawer(mobileNavX) } }, [isMobile, mobileNavX])
   // Focus mode forces the rail EXPANDED regardless of the user's collapse
   // preference. A collapsed rail is 74px, and as a hover-held overlay that is a
   // hard target to keep the pointer inside — it puts itself away the moment you
@@ -2300,7 +2359,7 @@ export default function App() {
   // query. Nothing measures a cluster any more — the drag-region reporter
   // addresses the header itself and the layout tests match the group classes, so
   // the two cluster refs this used to keep are gone with the measurement.
-  const closeMobileNav = isMobile ? () => setMobileNavOpen(false) : undefined
+  const closeMobileNav = isMobile ? closeMobileNavDrawer : undefined
   const activePath = location.pathname
   // App Store split (PR1): two sidebar entries share the /apps namespace.
   //  - Library owns /apps/library and everything under it.
@@ -3056,20 +3115,25 @@ export default function App() {
         />
       </OnboardingShellHost>
 
-      {/* Mobile backdrop */}
-      <AnimatePresence>
-        {isMobile && mobileNavOpen && (
-          <motion.div
-            key="nav-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="fixed inset-0 z-[46] bg-black/50 backdrop-blur-sm"
-            onClick={() => setMobileNavOpen(false)}
-          />
-        )}
-      </AnimatePresence>
+      {/* Mobile backdrop — opacity is animated by animateDrawer in lockstep
+          with the panel (compositor), so there is no framer fade here; it
+          mounts at 0 and the slide carries it. Mounted for the whole phase so
+          the slide-out fade is not cut short.
+          aria-hidden: the scrim is decorative — its click-to-dismiss is a
+          pointer convenience, and keyboard users dismiss via Escape (handled
+          where the drawer state lives). A focusable full-screen scrim would
+          add a giant tab stop over the whole page, which is why this is NOT
+          the Clickable component. */}
+      {isMobile && mobileNavMounted && (
+        <div
+          ref={mobileNavScrimRef}
+          data-testid="nav-backdrop"
+          aria-hidden="true"
+          style={{ opacity: 0 }}
+          className="fixed inset-0 z-[46] bg-black/50 backdrop-blur-sm"
+          onClick={closeMobileNavDrawer}
+        />
+      )}
 
       {/* Nav */}
       {/* Desktop rail and mobile drawer share one body but get DIFFERENT
@@ -3448,8 +3512,8 @@ export default function App() {
         })()}
         </>)
         return isMobile ? (
-          <AnimatePresence>
-            {mobileNavOpen && (
+          <>
+            {mobileNavMounted && (
               /* mt-2, unlike the desktop rail's mt-0: this form is `fixed` to the
                  VIEWPORT top rather than sitting in the grid row below the
                  topbar, so mt-0 pressed the card's rounded top edge flat against
@@ -3457,20 +3521,23 @@ export default function App() {
                  the 8px inset on all four keeps the drawer reading as one
                  floating card. `top-0 bottom-0` with both margins resolves the
                  height to viewport-16px, so nothing is clipped. */
-              <motion.nav
+              /* Plain nav, not motion.nav: the slide runs on the COMPOSITOR
+                 (animateDrawer via mobileNavPanelRef), and framer must not own
+                 a competing transform on the same element. Seated offscreen by
+                 an inline transform so the first painted frame is the closed
+                 offset; the settle overwrites it. */
+              <nav
                 key="mobile-nav-drawer"
-                initial={{ x: -240 }}
-                animate={{ width: 220, x: 0 }}
-                exit={{ x: -240 }}
-                transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
+                ref={mobileNavPanelRef}
+                style={{ width: 220, transform: `translate3d(${mobileNavX.get()}px, 0, 0)` }}
                 className="bg-bg-elevated border border-border rounded-xl flex flex-col mx-2 mt-2 mb-2 shadow-sm z-50 overflow-hidden fixed top-safe left-safe bottom-safe"
                 role="navigation"
                 aria-label={i18nT('app.main_navigation')}
               >
                 {navBody}
-              </motion.nav>
+              </nav>
             )}
-          </AnimatePresence>
+          </>
         ) : (
           <nav
             ref={railPeekSurface}

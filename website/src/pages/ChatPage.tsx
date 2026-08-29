@@ -13,7 +13,7 @@ import { isBrowseCommand } from '../utils/browseCommand'
 // importable from here; the implementation lives in `utils/browseCommand` so a
 // pure test need not pull ChatPage's module graph.
 export { isBrowseCommand }
-import { useDrawerSwipe, animateDrawer } from '../hooks/useDrawerSwipe'
+import { useDrawerSwipe, animateDrawer, registerDrawerTargets, takeOverDrawer } from '../hooks/useDrawerSwipe'
 import { shouldReplaceSessionUrl } from '../utils/sessionUrlHistory'
 import type { ResizeInfo } from '../utils/resizeImage'
 import { useAppSelector, useAppDispatch, store } from '../store'
@@ -1035,6 +1035,20 @@ export default function ChatPage({ mode, embedded, embedMode, popout, noUrlSync 
   // the composer, TipCard never renders, and an unblocked hook would fetch a
   // tip + record it as shown, silently burning the 6h cadence.
   const [splitMode, setSplitMode] = useState(false)
+  /**
+   * Passed to ChatSidebar as `onSelectSlot`. Stable BY CONTRACT, not by
+   * convenience: `ChatSidebar` is wrapped in `memo`, and an inline arrow here
+   * makes that memo bail on EVERY ChatPage render. ChatPage re-renders once per
+   * frame while anything is streaming (`useWebSocket` batches chunks per rAF
+   * and this page subscribes to the whole `chat.messages`), so an unstable
+   * identity re-rendered the entire sidebar ~60 times across the 0.32s mobile
+   * drawer slide — on the same main thread that drives the slide's transform.
+   * Keep every prop handed to ChatSidebar referentially stable.
+   */
+  const clearSplitOnSelect = useCallback(() => setSplitMode(false), [])
+  /** Same contract as `clearSplitOnSelect`, for the `embedMode === 'sessions'`
+   *  frame where the sidebar IS the whole page. */
+  const navigateToEmbeddedSlot = useCallback((key: string) => navigate(`/embed/chat/${key}`), [navigate])
   const [splitAnchor, setSplitAnchor] = useState<string | null>(null)
   // Temporary sessions ("no memory reads or writes") must never show
   // memory-personalized tips.
@@ -3640,7 +3654,13 @@ export default function ChatPage({ mode, embedded, embedMode, popout, noUrlSync 
     if (opts?.background) return
     if (!connectedRef.current) return
     if (key !== activeSlotRef.current) dispatch(switchSlot(key))
-  }, [sessionTabs, dispatch])
+    // Depends on the ONE member it calls, not on `sessionTabs` — that hook
+    // returns a fresh object literal every render, so the whole object as a dep
+    // makes this callback (and thus ChatSidebar's `onOpenSlotInNewTab`, and thus
+    // the sidebar's `memo`) churn on every ChatPage render. `openInNewTab` is
+    // itself dep-free, so this identity is genuinely stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionTabs.openInNewTab, dispatch])
   const selectSessionTab = useCallback((key: string) => {
     if (key === activeSlotRef.current || !connectedRef.current) return
     dispatch(switchSlot(key))
@@ -6564,12 +6584,50 @@ export default function ChatPage({ mode, embedded, embedMode, popout, noUrlSync 
   /** Panel offset in px: `-innerWidth` offscreen, `0` at rest. A MotionValue so
    *  the drag writes it at frame rate without re-rendering this component. */
   const drawerX = useMotionValue(0)
+  /** The sliding panel and the scrim behind it. Handed to
+   *  `registerDrawerTargets` so the settle animates THESE ELEMENTS (compositor)
+   *  instead of sampling `drawerX` on the main thread — the only way the slide
+   *  holds its frame rate while sessions stream. Refs rather than state:
+   *  nothing renders off them. */
+  const drawerPanelRef = useRef<HTMLDivElement | null>(null)
+  const drawerScrimRef = useRef<HTMLDivElement | null>(null)
+  /**
+   * RIGHT-side panel slide (mobile only). The inline side panel used to enter
+   * by animating `width: 0 → auto` — a LAYOUT animation the compositor cannot
+   * take, which re-laid-out the squeezed chat pane on every frame of the
+   * 400ms open. On mobile it covers the full window anyway, so it is rendered
+   * as a fixed overlay instead and slides in from the RIGHT on the compositor,
+   * mirroring the sessions drawer. Offsets run [0, +width] (closed = +width).
+   * Desktop keeps the width reveal: there the chat pane genuinely shares the
+   * row and the reflow is the point.
+   */
+  const sideOverlayX = useMotionValue(0)
+  const sideOverlayPanelRef = useRef<HTMLDivElement | null>(null)
+  const [sideOverlayPhase, setSideOverlayPhase] = useState<'closed' | 'open' | 'closing'>('closed')
+  const sideOverlayPhaseRef = useRef(sideOverlayPhase)
+  sideOverlayPhaseRef.current = sideOverlayPhase
+  useEffect(() => registerDrawerTargets(sideOverlayX, {
+    panel: () => sideOverlayPanelRef.current,
+    scrim: () => null,
+    travel: () => window.innerWidth || 0,
+  }), [sideOverlayX])
   /** The scrim tracks the panel instead of running its own fade, so a half-drag
    *  is half-dimmed and a cancelled drag un-dims with the finger. */
   const drawerScrim = useTransform(drawerX, x => {
     const w = typeof window === 'undefined' ? 1 : window.innerWidth || 1
     return Math.max(0, Math.min(1, 1 + x / w))
   })
+  // Point every settle on `drawerX` at real DOM. Registered once for the page's
+  // lifetime, reading the elements through the refs at animation time — the
+  // panel is mounted and unmounted per open, so binding the nodes themselves
+  // here would go stale on the first close. Safe ONLY because the drawer's
+  // ChatSidebar renders staticRows (no projection nodes under a compositor-
+  // driven transform — see registerDrawerTargets' precondition).
+  useEffect(() => registerDrawerTargets(drawerX, {
+    panel: () => drawerPanelRef.current,
+    scrim: () => drawerScrimRef.current,
+    travel: () => window.innerWidth || 0,
+  }), [drawerX])
   // Read for the transition guards below. The animation each transition starts
   // is a side effect, so it must not live inside a setState updater — React may
   // invoke an updater more than once, which would start the settle twice.
@@ -6656,6 +6714,33 @@ export default function ChatPage({ mode, embedded, embedMode, popout, noUrlSync 
     mo.observe(document.body, { childList: true, subtree: true })
     return () => mo.disconnect()
   }, [isMobile, embedMode])
+  /** The inline panel's mount predicate, shared by the overlay phase effect
+   *  and the render below so the two cannot disagree. */
+  const sidePanelWantsMount = shouldMountSidePanel({ activityOpen, hasLiveAppTab, hasBrowserTab, searchOpen: search.isOpen })
+    && !isSidePanelHidden({ activityOpen, hasLiveAppTab, hasBrowserTab, searchOpen: search.isOpen })
+  // Mobile right-panel overlay: slide in when the panel wants the screen,
+  // slide out (keeping it mounted for the travel) when it stops wanting it.
+  useEffect(() => {
+    if (!isMobile) { setSideOverlayPhase('closed'); takeOverDrawer(sideOverlayX); return }
+    if (sidePanelWantsMount) {
+      if (sideOverlayPhaseRef.current === 'open') return
+      if (sideOverlayPhaseRef.current === 'closed') sideOverlayX.set(window.innerWidth || 0)
+      sideOverlayPhaseRef.current = 'open'
+      setSideOverlayPhase('open')
+      takeOverDrawer(sideOverlayX)
+      animateDrawer(sideOverlayX, 0)
+    } else {
+      if (sideOverlayPhaseRef.current !== 'open') return
+      sideOverlayPhaseRef.current = 'closing'
+      setSideOverlayPhase('closing')
+      takeOverDrawer(sideOverlayX)
+      animateDrawer(sideOverlayX, window.innerWidth || 0, () => {
+        sideOverlayPhaseRef.current = 'closed'
+        setSideOverlayPhase('closed')
+      })
+    }
+  }, [isMobile, sidePanelWantsMount, sideOverlayX])
+
   /** True while the INLINE side panel (mobile / embed, no actbar column) is
    *  mounted AND visible.
    *
@@ -6884,8 +6969,19 @@ export default function ChatPage({ mode, embedded, embedMode, popout, noUrlSync 
         {isMobile && drawerMounted && (
           <motion.div
             key="sessions-backdrop"
-            style={{ opacity: drawerScrim }}
+            data-testid="sessions-backdrop"
             className="fixed inset-0 z-[46] bg-black/50 backdrop-blur-sm"
+            // ^ Frosted, matching every other scrim in the app (App.tsx's own
+            // mobile nav backdrop is the same three classes). Kept adjacent to
+            // `key` — the composer-chrome occlusion guard anchors its z-order
+            // regex on that proximity. A full-viewport `backdrop-filter` does
+            // re-sample its backdrop on every repaint behind it — which under
+            // a streaming message list is every frame — and both alternatives
+            // were tried and rejected on how they LOOK: dropping it entirely,
+            // and deferring it to the settled state (the blur arriving after
+            // the panel had stopped read as a second event).
+            ref={drawerScrimRef}
+            style={{ opacity: drawerScrim }}
             // Ignored while a drag owns the panel: the release that ends a
             // close gesture lands here as a click, and treating it as a
             // tap-to-dismiss would run a second close over the settle.
@@ -6955,11 +7051,11 @@ export default function ChatPage({ mode, embedded, embedMode, popout, noUrlSync 
             mode={mode}
             onWidthChange={setSidebarWidth}
             onDragChange={setSidebarDragging}
-            onSelectSlot={(key) => navigate(`/embed/chat/${key}`)}
+            onSelectSlot={navigateToEmbeddedSlot}
           />
         </div>
       ) : (
-      <OverlayDrawer open={isMobile ? drawerMounted : sidebarOpen} width={isMobile ? window.innerWidth : sidebarWidth} dragging={sidebarDragging} slideX={isMobile ? drawerX : undefined} morph={!isMobile} morphTarget={TOGGLE_RECT} expandFrom={expandFrom} contentH={Math.max(0, containerH - 8)} className={isMobile ? 'mobile-sessions-overlay fixed top-safe-offset-[42px] bottom-safe left-safe z-50 bg-bg-elevated !py-0 rounded-r-xl shadow-lg max-w-[calc(100vw-2.5rem)] [&>*]:!rounded-none [&>*]:!border-0 [&>*]:!m-0' : ''}>
+      <OverlayDrawer open={isMobile ? drawerMounted : sidebarOpen} width={isMobile ? window.innerWidth : sidebarWidth} dragging={sidebarDragging} slideX={isMobile ? drawerX : undefined} slideRef={drawerPanelRef} morph={!isMobile} morphTarget={TOGGLE_RECT} expandFrom={expandFrom} contentH={Math.max(0, containerH - 8)} className={isMobile ? 'mobile-sessions-overlay fixed top-safe-offset-[42px] bottom-safe left-safe z-50 bg-bg-elevated !py-0 rounded-r-xl shadow-lg max-w-[calc(100vw-2.5rem)] [&>*]:!rounded-none [&>*]:!border-0 [&>*]:!m-0' : ''}>
         <ChatSidebar
           slots={filteredSlots}
           activeSlot={activeSlot}
@@ -6972,7 +7068,8 @@ export default function ChatPage({ mode, embedded, embedMode, popout, noUrlSync 
           onWidthChange={setSidebarWidth}
           onDragChange={setSidebarDragging}
           collapsible={!isMobile}
-          onSelectSlot={() => setSplitMode(false)}
+          staticRows={isMobile}
+          onSelectSlot={clearSplitOnSelect}
           onOpenSlotInNewTab={ownsSessionTabs ? openSlotInNewTab : undefined}
           onOpenSource={revealSourceLink}
           // Only offer the pane as a drop target when a composer exists to show
@@ -8048,18 +8145,43 @@ export default function ChatPage({ mode, embedded, embedMode, popout, noUrlSync 
         )}
       <AnimatePresence initial={false}>
         {/* Inline side panel — mobile / embed frames where there's no actbar
-            grid column. Desktop uses the actbar portal below. */}
-        {shouldMountSidePanel({ activityOpen, hasLiveAppTab, hasBrowserTab, searchOpen: search.isOpen }) && !activitySlot && (
+            grid column. Desktop uses the actbar portal below.
+
+            MOBILE is a fixed overlay sliding in from the RIGHT on the
+            compositor (sideOverlayX / animateDrawer), mirroring the sessions
+            drawer: the old `width: 0 → auto` reveal is a LAYOUT animation, so
+            it re-laid-out the panel AND the squeezed chat pane every frame.
+            Mount is held through 'closing' so the slide-out is not cut short.
+            Embed frames keep the width reveal — they have no overlay chrome. */}
+        {(isMobile
+          // `hasLiveAppTab` keeps a closed-but-alive panel MOUNTED (display:none
+          // below) so its iframe — and the drawing inside it — survives the
+          // close, exactly as the width-reveal branch always did.
+          ? (sideOverlayPhase !== 'closed'
+              || (shouldMountSidePanel({ activityOpen, hasLiveAppTab, hasBrowserTab, searchOpen: search.isOpen })
+                  && isSidePanelHidden({ activityOpen, hasLiveAppTab, hasBrowserTab, searchOpen: search.isOpen }))) && !activitySlot
+          : shouldMountSidePanel({ activityOpen, hasLiveAppTab, hasBrowserTab, searchOpen: search.isOpen }) && !activitySlot) && (
           <motion.div
             key="side-panel-inline"
-            initial={{ width: 0 }}
-            animate={{ width: 'auto' }}
-            exit={{ width: 0 }}
-            transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
-            className="h-full overflow-hidden flex justify-end shrink-0"
+            ref={isMobile ? sideOverlayPanelRef : undefined}
+            initial={isMobile ? false : { width: 0 }}
+            animate={isMobile ? undefined : { width: 'auto' }}
+            exit={isMobile ? undefined : { width: 0 }}
+            transition={isMobile ? undefined : { duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
+            // Below the 42px app topbar, like the sessions drawer — the panel
+            // takes over the CONTENT area, not the shell chrome.
+            className={isMobile
+              ? 'fixed top-safe-offset-[42px] bottom-safe left-safe right-safe z-[47] flex justify-end bg-bg'
+              : 'h-full overflow-hidden flex justify-end shrink-0'}
             // Kept mounted for a live app tab: hide instead of unmounting so the
-            // iframe (and the drawing inside it) survives a panel close.
-            style={isSidePanelHidden({ activityOpen, hasLiveAppTab, hasBrowserTab, searchOpen: search.isOpen }) ? { display: 'none' } : undefined}
+            // iframe (and the drawing inside it) survives a panel close. On
+            // mobile the overlay phase already owns mount/hide timing; seating
+            // the closed offset inline keeps the first painted frame offscreen.
+            style={isMobile
+              ? (sideOverlayPhase === 'closed'
+                  ? { display: 'none' } // keep-alive: mounted for the iframe, invisible
+                  : { transform: `translate3d(${sideOverlayX.get()}px, 0, 0)` })
+              : (isSidePanelHidden({ activityOpen, hasLiveAppTab, hasBrowserTab, searchOpen: search.isOpen }) ? { display: 'none' } : undefined)}
           >
             <SidePanel
               tabsCtl={tabsCtl}

@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act, screen, fireEvent } from '@testing-library/react'
 import { renderWithProviders } from './helpers'
+import tailwindConfig from '../../tailwind.config.js'
 
 vi.mock('../pages/ChatPage', () => ({ default: () => <div data-testid="chat-page">ChatPage</div> }))
 vi.mock('../pages/SystemPage', () => ({ default: () => null }))
@@ -120,5 +121,46 @@ describe('Notification Center sheet — slide-out on dismiss', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(document.activeElement).toBe(bell)
     expect(sheet()?.classList.contains('animate-nc-slide-out')).toBe(true)
+  })
+})
+
+/**
+ * Compositor guards — the sheet's slide must stay off the main thread.
+ *
+ * The keyframes originally animated `marginRight`: a layout property, so
+ * every animation frame reflowed the sheet and its whole subtree on the main
+ * thread — the same jank class as the old right-panel `width` animation, and
+ * exactly what makes an open/close stutter while sessions are streaming. The
+ * fix animates `transform` (compositor-driven). The old margin choice was
+ * justified by a claim that a transformed ancestor becomes a backdrop root
+ * and breaks the cards' backdrop-filter; a Chromium pixel probe (card blur
+ * measured mid-animation under a transformed ancestor) disproved that —
+ * transform is not in the backdrop-root trigger list.
+ *
+ * Percentage translateX resolves against the element's OWN width, which is
+ * why one keyframe pair now covers both the desktop 400px sheet and the
+ * mobile full-width sheet (the old `-full` variants are gone).
+ */
+describe('Notification Center sheet — compositor-driven slide', () => {
+  const keyframes = (tailwindConfig as { theme: { extend: { keyframes: Record<string, Record<string, Record<string, string>>> } } })
+    .theme.extend.keyframes
+
+  it('animates transform only, never a layout property', () => {
+    for (const name of ['nc-slide-in', 'nc-slide-out'] as const) {
+      const frames = keyframes[name]
+      expect(frames, `${name} keyframes must exist`).toBeTruthy()
+      for (const [stop, decl] of Object.entries(frames)) {
+        expect(Object.keys(decl), `${name} @${stop} must animate transform only`).toEqual(['transform'])
+      }
+    }
+  })
+
+  it('covers mobile via own-width percentages instead of a -full variant', () => {
+    // translateX(%) resolves against the element's own width, so the single
+    // pair covers the full-width mobile sheet; a resurrected -full variant
+    // means the margin split came back.
+    expect(keyframes['nc-slide-in-full']).toBeUndefined()
+    expect(keyframes['nc-slide-out-full']).toBeUndefined()
+    expect(keyframes['nc-slide-in'].from.transform).toContain('100%')
   })
 })

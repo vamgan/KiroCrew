@@ -8,6 +8,7 @@ import { sseStatus, sseYolo, sseConnected, sseDisconnected, sseSlots, sseTodoUpd
 import { addNotification, ackNotificationByTs, unackNotificationByTs, removeNotificationByTs, clearAllNotifications, fetchNotifications, markBootNotificationsFetched } from '../store/notificationsSlice'
 import { dispatchMcNotification, TURN_DONE_KIND, APPROVAL_KIND, shouldChimeOnTurnDone } from './notificationEvent'
 import { emitThemeSound } from './themeSound'
+import { streamingFlushHoldMs } from '../lib/streamHold'
 import {
   fetchHistory, missedChunkMarker, sseChatMessage, sseChatMessageUpdate, sseChatMessagePatchByTs, sseThinkingChunk, refreshSlot, warmSlotCache, sseContextUsage, clearMessages, clearSlotCache, setVoicePlaying, setVoiceAudio, resolveByApprovalId, clearSubagentsForSnapshot, sseSubagentPending, sseSubagentSpawn, sseSubagentQueued, sseSubagentTool, sseSubagentStalled, sseSubagentRetrying, sseSubagentDone, sseSubagentSnapshot, sseSubagentBatchUpdate, sseSubagentBatchChunks, sseToolActivity, sseToolResult, sseActivityEvent, sseSideResult, sseWorkflowEvent, setSlotStatusDetail, removeQueuedMessage, appendQueuedMessage, cancelQueuedMessage, editQueuedMessage, reorderQueuedMessages, appendSlotMessage, setQuestionCard, resolveQuestionCard, setFollowupCard, setFolderSuggestion, sseMcpAppRender, setGoalLoops, sseGoalLoop, sseSideQueue, reconcileWorkflowRuns
 } from '../store/chatSlice'
@@ -592,6 +593,13 @@ export function useWebSocket() {
   const scheduleChunkFlush = useCallback(() => {
     if (chunkFlushScheduledRef.current) return
     chunkFlushScheduledRef.current = true
+    // While a UI animation holds the pipelines (see lib/streamHold.ts), defer
+    // this flush to the hold's end instead of the next frame. The buffer keeps
+    // absorbing chunks meanwhile, and the guard flag stays set, so the whole
+    // burst lands as ONE flush when the hold lapses. A flush already scheduled
+    // when a hold STARTS still fires — at most one frame leaks into the slide.
+    const hold = streamingFlushHoldMs()
+    if (hold > 0) { chunkTimerRef.current = setTimeout(() => flushChunks(), hold + 16); return }
     if (typeof requestAnimationFrame === 'function') chunkRafRef.current = requestAnimationFrame(() => flushChunks())
     else chunkTimerRef.current = setTimeout(() => flushChunks(), 16)
   }, [flushChunks])
@@ -639,6 +647,10 @@ export function useWebSocket() {
   const scheduleSlotActivityFlush = useCallback(() => {
     if (slotActivityFlushScheduledRef.current) return
     slotActivityFlushScheduledRef.current = true
+    // Same hold as scheduleChunkFlush — a recency bump reorders sidebar rows,
+    // which is main-thread layout work mid-slide.
+    const hold = streamingFlushHoldMs()
+    if (hold > 0) { slotActivityTimerRef.current = setTimeout(() => flushSlotActivity(), hold + 16); return }
     if (typeof requestAnimationFrame === 'function') slotActivityRafRef.current = requestAnimationFrame(() => flushSlotActivity())
     else slotActivityTimerRef.current = setTimeout(() => flushSlotActivity(), 16)
   }, [flushSlotActivity])
@@ -678,6 +690,10 @@ export function useWebSocket() {
   const scheduleSubagentChunkFlush = useCallback(() => {
     if (subagentChunkFlushScheduledRef.current) return
     subagentChunkFlushScheduledRef.current = true
+    // Same hold as scheduleChunkFlush — several subagents streaming at once is
+    // exactly the reported worst case for the drawer slide.
+    const hold = streamingFlushHoldMs()
+    if (hold > 0) { subagentChunkTimerRef.current = setTimeout(() => flushSubagentChunks(), hold + 16); return }
     if (typeof requestAnimationFrame === 'function') subagentChunkRafRef.current = requestAnimationFrame(() => flushSubagentChunks())
     else subagentChunkTimerRef.current = setTimeout(() => flushSubagentChunks(), 16)
   }, [flushSubagentChunks])
