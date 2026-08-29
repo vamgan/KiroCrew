@@ -106,6 +106,30 @@ _N_CTX = 2048
 # 6,000-char maximum input produces byte-identical vectors at 512 and 2048,
 # while 512 avoids roughly 419 MiB of peak RSS on the shipped Linux runtime.
 _N_UBATCH = 512
+# Logical batch handed to the vendored Llama. This ALSO sizes the per-token
+# logits/scores buffer the constructor eagerly allocates:
+#     self.scores = np.ndarray((n_batch, n_vocab), dtype=np.single)   # llama.py
+# (shape is (n_batch, n_vocab) because logits_all defaults to False at
+# construction). For Qwen3-Embedding-0.6B n_vocab is 151,936, so at the old
+# value of n_batch == _N_CTX (2048) that array was
+#     2048 * 151_936 * 4 bytes  ≈ 1.24 GB (1.16 GiB)
+# allocated once at model load and NEVER read on the embedding path: Llama.embed
+# / create_embedding return vectors via llama_get_embeddings_seq /
+# llama_get_embeddings and never touch self.scores (the `logits_all` inside
+# embed() is a local flag for output marking, not the constructor arg). Shrinking
+# n_batch shrinks that dead buffer proportionally. We pick the SMALLEST safe
+# value rather than _N_UBATCH: Llama.embed(truncate=True) clips each input to
+# n_batch tokens, so n_batch must cover the most tokens a single clipped input
+# can produce or last-token pooling would pool a different final token and the
+# vector would change. A clipped input is at most _MAX_EMBED_CHARS (6,000) chars
+# at the conservative ~4 chars/token used for that clip, i.e. ~1,500 tokens, so
+# n_batch must be >= ~1,500. 1,536 (== 3 * _N_UBATCH) is the smallest multiple of
+# the micro-batch that clears 1,500, stays strictly below _N_CTX, and keeps
+# n_batch >= n_ubatch (a llama.cpp requirement). Result:
+#     1536 * 151_936 * 4 bytes  ≈ 0.93 GB (0.87 GiB)  = ~311 MB reclaimed
+# with byte-identical vectors for every input up to _MAX_EMBED_CHARS, and n_ctx
+# and n_ubatch (hence accepted context and micro-batching) unchanged.
+_N_BATCH = 1_536
 # Safety truncation (chars) before inference, sized under _N_CTX at a
 # conservative ~4 chars/token so a clipped input always fits the context
 # window. Only pathological un-chunked blobs exceed this; mirrors the
@@ -1328,7 +1352,14 @@ class LlamaCppEmbedder(EmbeddingBackend):
                 embedding=True,
                 pooling_type=_POOLING_TYPE_LAST,
                 n_ctx=_N_CTX,
-                n_batch=_N_CTX,
+                # n_batch (< n_ctx) bounds the eager (n_batch, n_vocab) scores
+                # buffer the vendored Llama.__init__ allocates but the embedding
+                # path never reads (see the _N_BATCH definition for the full
+                # buffer-size math, ~1.24 GB down to ~0.93 GB). Kept >= the max
+                # tokens a single _MAX_EMBED_CHARS-clipped input can yield so
+                # vectors stay byte-identical, and >= _N_UBATCH (llama.cpp needs
+                # n_batch >= n_ubatch).
+                n_batch=_N_BATCH,
                 n_ubatch=_N_UBATCH,
                 # Both pools are pinned. Embedding is prompt processing, so the
                 # BATCH pool is the one that actually runs, but leaving the
