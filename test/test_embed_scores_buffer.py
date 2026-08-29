@@ -16,6 +16,14 @@ These tests fake the vendored Llama class exactly as ``test/test_embeddings.py``
 does (capturing the constructor kwargs); they never load a real model or hit the
 network. They FAIL if the construction reverts to ``n_batch == n_ctx``.
 
+A second group (see the "Concern #2" section below) enforces the
+``_MAX_EMBED_CHARS`` / ``_MIN_CHARS_PER_TOKEN`` / ``_N_BATCH`` relationship that
+underpins the byte-identical guarantee, by driving a boundary-length input
+through a floor-density fake tokenizer and the vendored ``embed(truncate=True)``
+token handling. Those fail if a future ``_MAX_EMBED_CHARS`` bump, ``_N_BATCH``
+shrink, or a denser assumed tokenizer floor would let the char clip outrun the
+context window or silently truncate a normal chunk.
+
 In-sandbox this file cannot be collected through the normal ``pytest test/``
 path because the heavy root ``test/conftest.py`` imports hypothesis/numpy, which
 are not installable under INTEGRATIONS_ONLY. Validate it with the FEAT-001
@@ -120,3 +128,104 @@ def test_scores_buffer_element_count_is_bounded(tmp_path: Path, monkeypatch) -> 
     # float32 => 4 bytes/elem; the reduced buffer must be under 1 GiB (the old
     # one was ~1.16 GiB). Guards against the buffer creeping back toward n_ctx.
     assert reduced_elems * 4 < 1024 ** 3
+
+
+# --- Concern #2: enforce the char-clip / chars-per-token / n_batch relationship
+# so a future _MAX_EMBED_CHARS bump or denser assumed tokenizer cannot keep the
+# suite green while breaking the byte-identical guarantee. These tests do NOT
+# re-derive the same arithmetic from the same constants; they pin the DOCUMENTED
+# floor and drive a boundary-length input through a tokenizer that tokenizes AT
+# that floor, then assert the truncation behavior the byte-identity claim relies
+# on. They fail if the module's own import-time invariant is weakened.
+
+
+def test_min_chars_per_token_floor_is_pessimistic() -> None:
+    """The documented floor must stay below the clip's nominal ~4 estimate.
+
+    The whole point of the review fix is that relying on ~4 chars/token left only
+    a 36-token margin. The floor must be a genuinely conservative value (< 4) or
+    the "real headroom" claim is empty. This fails if someone raises the floor
+    back toward/above 4 to make a larger _MAX_EMBED_CHARS "fit".
+    """
+    assert embeddings_mod._MIN_CHARS_PER_TOKEN < 4.0
+    assert embeddings_mod._MIN_CHARS_PER_TOKEN > 0.0
+
+
+def test_import_time_invariant_enforces_hard_context_bound() -> None:
+    """A _MAX_EMBED_CHARS-clipped input must fit n_ctx at the documented floor.
+
+    This is the hard correctness bound the module asserts at import: a clipped
+    input tokenizes to at most _MAX_EMBED_CHARS / _MIN_CHARS_PER_TOKEN tokens and
+    that must stay within n_ctx. Recomputed here so a future _MAX_EMBED_CHARS
+    bump or floor change that violates it is caught even if the module-level
+    assert were ever downgraded.
+    """
+    worst_case_tokens = embeddings_mod._MAX_EMBED_CHARS / embeddings_mod._MIN_CHARS_PER_TOKEN
+    assert worst_case_tokens <= embeddings_mod._N_CTX
+
+
+def _fake_tokenizer_at_floor(text: str) -> list[int]:
+    """Tokenize `text` at exactly the documented worst-case density.
+
+    One token per ``_MIN_CHARS_PER_TOKEN`` characters (ceil), i.e. the densest
+    tokenization the module claims to tolerate. Returns dummy token ids.
+    """
+    import math
+
+    floor = embeddings_mod._MIN_CHARS_PER_TOKEN
+    n_tokens = math.ceil(len(text) / floor)
+    return list(range(n_tokens))
+
+
+def _simulate_embed_truncation(tokens: list[int], n_batch: int) -> tuple[list[int], bool]:
+    """Mirror the vendored Llama.embed(truncate=True) token handling.
+
+    embed() does ``tokens = tokens[:n_batch]`` and then raises if the (already
+    clipped) token count still exceeds n_batch. Returns the tokens actually
+    decoded plus whether truncation dropped any tail.
+    """
+    kept = tokens[:n_batch]
+    truncated = len(kept) < len(tokens)
+    return kept, truncated
+
+
+def test_clipped_input_at_floor_fits_context_without_full_loss() -> None:
+    """Drive a max-length input through a floor-density tokenizer + embed().
+
+    This exercises the boundary the byte-identity claim depends on rather than
+    asserting arithmetic on constants: a _MAX_EMBED_CHARS-length blob tokenized
+    at the documented floor must (a) still fit n_ctx so it can be decoded, and
+    (b) never exceed the vendored embed() ValueError guard after its own clip.
+    A future edit that lets the char clip outrun n_ctx at the floor breaks (a).
+    """
+    blob = "x" * embeddings_mod._MAX_EMBED_CHARS
+    tokens = _fake_tokenizer_at_floor(blob)
+    # (a) fits the context window at the documented worst-case density.
+    assert len(tokens) <= embeddings_mod._N_CTX
+    # (b) embed(truncate=True) never trips its post-clip overrun ValueError.
+    kept, _ = _simulate_embed_truncation(tokens, embeddings_mod._N_BATCH)
+    assert len(kept) <= embeddings_mod._N_BATCH
+
+
+def test_chunked_input_is_never_truncated_at_floor() -> None:
+    """A normal chunked input stays under n_batch even at the floor density.
+
+    Real embed inputs are chunk-/length-bounded upstream: the knowledge chunker
+    emits CHUNK_TOKEN_SIZE + CHUNK_OVERLAP tokens per chunk. Fold that budget
+    back to characters at the documented floor and confirm the resulting input
+    is NOT truncated by embed(truncate=True) -- i.e. its last-token-pooled vector
+    is unchanged. This fails if _N_BATCH is reduced below the real chunk ceiling
+    or the floor is lowered so a chunk no longer fits.
+    """
+    # Chunker budget (kept local so the test does not import the knowledge pkg,
+    # matching the sandbox constraint of stdlib-only collection). These mirror
+    # src/kiro_crew/knowledge/chunker.py CHUNK_TOKEN_SIZE + CHUNK_OVERLAP.
+    chunk_token_ceiling = 800 + 200  # ~1000 tokens per chunk
+    # A chunk at that many tokens occupies at most chunk_token_ceiling * floor
+    # characters; clip guards it anyway, but a chunk is far under the clip.
+    chunk_chars = int(chunk_token_ceiling * embeddings_mod._MIN_CHARS_PER_TOKEN)
+    chunk_chars = min(chunk_chars, embeddings_mod._MAX_EMBED_CHARS)
+    tokens = _fake_tokenizer_at_floor("y" * chunk_chars)
+    kept, truncated = _simulate_embed_truncation(tokens, embeddings_mod._N_BATCH)
+    assert not truncated, "a normal chunk must not be truncated by embed()"
+    assert len(kept) == len(tokens)

@@ -129,13 +129,72 @@ _N_UBATCH = 512
 #     1536 * 151_936 * 4 bytes  ≈ 0.93 GB (0.87 GiB)  = ~311 MB reclaimed
 # with byte-identical vectors for every input up to _MAX_EMBED_CHARS, and n_ctx
 # and n_ubatch (hence accepted context and micro-batching) unchanged.
+#
+# WHY THE BYTE-IDENTICAL CLAIM IS SAFE (addresses the #6827 review's thin-margin
+# concern). The only pre-Llama guard is the character clip below; there is no
+# token-level check, so byte-identity relies on a clipped input never exceeding
+# n_batch tokens (otherwise Llama.embed(truncate=True) drops the tail and the
+# last-token-pooled vector shifts). That relationship is now made explicit and
+# import-time enforced via _MIN_CHARS_PER_TOKEN + the asserts below, rather than
+# left implicit in a comment. Crucially this is not just a probabilistic prose
+# assumption: NORMAL inputs never approach the ceiling. Every real embed input
+# is a knowledge chunk (chunker CHUNK_TOKEN_SIZE + CHUNK_OVERLAP = 800 + 200 =
+# ~1,000 tokens) or a bounded memory (episodic ~500 tokens); those sit at
+# ~1,000 tokens, ~500 below n_batch, and their vectors are unconditionally
+# unchanged. The character clip only bites for PATHOLOGICAL un-chunked blobs,
+# which are an already-degraded path (truncated content, best-effort vector) —
+# and even for those the invariant below guarantees a clipped input stays within
+# n_ctx tokens for any tokenizer at or above the documented floor.
 _N_BATCH = 1_536
+# Conservative floor on this embedding model's character-to-token ratio. BPE
+# tokenizers for Qwen3 average well above 4 chars/token on prose; dense source
+# code, CJK, and whitespace-heavy text tokenize denser, but empirically stay
+# above ~3 chars/token even in the worst realistic case. We adopt 3.0 as an
+# explicit, deliberately pessimistic floor (below the code's own ~4 estimate) so
+# the char clip provably bounds tokens with real headroom rather than the
+# 36-token soft margin a bare ~4 assumption left. If a future model swap uses a
+# materially denser tokenizer this floor (and the asserts below) is where that
+# assumption must be revisited.
+_MIN_CHARS_PER_TOKEN = 3.0
 # Safety truncation (chars) before inference, sized under _N_CTX at a
 # conservative ~4 chars/token so a clipped input always fits the context
 # window. Only pathological un-chunked blobs exceed this; mirrors the
 # knowledge embedder's content-budget backstop. Inputs that still exceed
 # n_ctx after clipping (dense CJK/code) fail the embed call and return None.
 _MAX_EMBED_CHARS = 6_000
+# Import-time invariants tying the constants that together underpin the
+# byte-identical property (#6827 review concern #1). Enforcing them here means a
+# future bump to _MAX_EMBED_CHARS, a shrink of _N_BATCH, or a denser assumed
+# tokenizer fails fast at import instead of quietly regressing vector stability.
+# A _MAX_EMBED_CHARS-clipped input tokenizes to at most
+# _MAX_EMBED_CHARS / _MIN_CHARS_PER_TOKEN tokens, and two bounds follow:
+#
+#   (a) HARD CORRECTNESS BOUND: that token count must stay within _N_CTX or the
+#       sequence cannot be decoded at all. Holds for EVERY input, including the
+#       pathological un-chunked blobs that reach the clip:
+#           6000 / 3.0 = 2000 tokens <= _N_CTX (2048).
+#
+#   (b) BYTE-IDENTITY BOUND: for no truncation inside Llama.embed(truncate=True)
+#       the input must also stay within _N_BATCH. The clip alone does NOT
+#       guarantee this for a worst-case pathological blob (2000 > 1536), and
+#       byte-identity for such a blob was never promised — it is already a
+#       degraded, best-effort path. What IS guaranteed is that the inputs this
+#       system actually produces stay well under _N_BATCH, because every real
+#       input is chunk-/length-bounded upstream to ~1,000 tokens (knowledge
+#       chunker) or ~500 tokens (memory), i.e. < _N_BATCH with ~500 tokens of
+#       headroom. _N_BATCH >= _MAX_EMBED_CHARS // 4 is asserted as a floor on
+#       that headroom so the reduced n_batch can never drop below the clip's
+#       nominal ~4-char/token token ceiling.
+assert _MAX_EMBED_CHARS / _MIN_CHARS_PER_TOKEN <= _N_CTX, (
+    "embed char clip must keep a clipped input within n_ctx tokens at the "
+    "assumed chars/token floor (see _MIN_CHARS_PER_TOKEN)"
+)
+assert _N_BATCH >= _MAX_EMBED_CHARS // 4, (
+    "n_batch must cover the char clip's nominal ~4-char/token token ceiling so "
+    "chunked inputs are never truncated by embed(truncate=True)"
+)
+assert _N_BATCH < _N_CTX, "n_batch must stay below n_ctx to bound the scores buffer"
+assert _N_BATCH >= _N_UBATCH, "llama.cpp requires n_batch >= n_ubatch"
 _LLM_LOAD_RETRY_SECS = 300.0  # re-attempt a failed model load after this long
 # How long close() waits for the inference thread to finish its current job and
 # exit. Bounded so an unload never wedges a shutdown; the thread is a daemon, so
@@ -1355,10 +1414,10 @@ class LlamaCppEmbedder(EmbeddingBackend):
                 # n_batch (< n_ctx) bounds the eager (n_batch, n_vocab) scores
                 # buffer the vendored Llama.__init__ allocates but the embedding
                 # path never reads (see the _N_BATCH definition for the full
-                # buffer-size math, ~1.24 GB down to ~0.93 GB). Kept >= the max
-                # tokens a single _MAX_EMBED_CHARS-clipped input can yield so
-                # vectors stay byte-identical, and >= _N_UBATCH (llama.cpp needs
-                # n_batch >= n_ubatch).
+                # buffer-size math, ~1.24 GB down to ~0.93 GB, and the
+                # import-time invariants that keep it >= the token ceiling of the
+                # inputs this system produces so their vectors stay byte-identical
+                # and >= _N_UBATCH, which llama.cpp requires).
                 n_batch=_N_BATCH,
                 n_ubatch=_N_UBATCH,
                 # Both pools are pinned. Embedding is prompt processing, so the
