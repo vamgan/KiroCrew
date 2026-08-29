@@ -1,7 +1,14 @@
 {
   "task_id": "task-gateway-memory-6827",
   "task_description": "Investigate and mitigate GitHub issue #6827: the KiroCrew Python Gateway process grows from ~600 MB to ~3 GB RSS within ~10 minutes of startup on Windows 11 (50+ skills, local git-clone knowledge sources, Telegram enabled), with no user interaction. The live symptom cannot be reproduced in this Linux INTEGRATIONS_ONLY sandbox, so the work is source-analysis-driven: confirm the strongest root-cause candidate, apply a defensive fix with a targeted test, rule out the other suspects with evidence, and document findings plus reporter diagnostics for the PR. Primary candidate confirmed from source: the in-process embedder (src/kiro_crew/embeddings.py) constructs the vendored llama.cpp Llama with n_batch=n_ctx=2048, causing the vendored scores/logits buffer to be eagerly allocated at ~1.24 GB (2048 * ~151k vocab * 4 bytes) even though the embedding path never reads it. Fix: shrink that buffer by reducing the embedder's n_batch while preserving embedding output.",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "verification": {
+    "build": "skipped",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "Full build/suite not runnable in-sandbox (INTEGRATIONS_ONLY blocks PyPI; root test/conftest.py imports hypothesis/numpy which cannot be installed; no Dockerfile-based build attempted for the Python gateway change). Targeted verification via the pyenv 3.11.15 harness: test/test_embed_scores_buffer.py = 8 passed (4 original guards + 4 added after the v1 review hardening the byte-identical invariant); kiro_crew.embeddings and kiro_crew.knowledge.embedder import cleanly. Test-quality confirmed meaningful: reverting n_batch=_N_BATCH->_N_CTX fails 2 tests; setting _MIN_CHARS_PER_TOKEN=4.0 fails the pessimism guard; raising _MAX_EMBED_CHARS to 6500 or lowering _N_BATCH to 1024 makes the module fail to import (import-time AssertionError); fix restored and working tree clean afterward. The live Windows 3GB-climb symptom cannot be reproduced in this sandbox; see docs/investigations/6827-gateway-memory.md for what is proven vs what needs a real-environment repro. Semantic review v1 verdict APPROVED; its two non-blocking concerns were addressed in a follow-up commit."
+  }
 }
