@@ -182,19 +182,30 @@ _MAX_EMBED_CHARS = 6_000
 #       system actually produces stay well under _N_BATCH, because every real
 #       input is chunk-/length-bounded upstream to ~1,000 tokens (knowledge
 #       chunker) or ~500 tokens (memory), i.e. < _N_BATCH with ~500 tokens of
-#       headroom. _N_BATCH >= _MAX_EMBED_CHARS // 4 is asserted as a floor on
-#       that headroom so the reduced n_batch can never drop below the clip's
-#       nominal ~4-char/token token ceiling.
-assert _MAX_EMBED_CHARS / _MIN_CHARS_PER_TOKEN <= _N_CTX, (
-    "embed char clip must keep a clipped input within n_ctx tokens at the "
-    "assumed chars/token floor (see _MIN_CHARS_PER_TOKEN)"
-)
-assert _N_BATCH >= _MAX_EMBED_CHARS // 4, (
-    "n_batch must cover the char clip's nominal ~4-char/token token ceiling so "
-    "chunked inputs are never truncated by embed(truncate=True)"
-)
-assert _N_BATCH < _N_CTX, "n_batch must stay below n_ctx to bound the scores buffer"
-assert _N_BATCH >= _N_UBATCH, "llama.cpp requires n_batch >= n_ubatch"
+#       headroom. _N_BATCH >= _MAX_EMBED_CHARS // 4 is enforced as a floor on
+#       that headroom (see the import-time check below) so the reduced n_batch
+#       can never drop below the clip's nominal ~4-char/token token ceiling.
+#
+# These are explicit `if ...: raise`, not `assert`: asserts are compiled out
+# under `python -O` / PYTHONOPTIMIZE, which would silently drop this fail-fast
+# protection in an optimized build. This repo deliberately avoids `assert` for
+# runtime guards for exactly that reason (see e.g. ledger_entry.py and
+# ws_event_scope.py). The conditions and messages below are the same invariants;
+# they trip only on a source edit to these module-level constants.
+if _MAX_EMBED_CHARS / _MIN_CHARS_PER_TOKEN > _N_CTX:
+    raise RuntimeError(
+        "embed char clip must keep a clipped input within n_ctx tokens at the "
+        "assumed chars/token floor (see _MIN_CHARS_PER_TOKEN)"
+    )
+if _N_BATCH < _MAX_EMBED_CHARS // 4:
+    raise RuntimeError(
+        "n_batch must cover the char clip's nominal ~4-char/token token ceiling "
+        "so chunked inputs are never truncated by embed(truncate=True)"
+    )
+if _N_BATCH >= _N_CTX:
+    raise RuntimeError("n_batch must stay below n_ctx to bound the scores buffer")
+if _N_BATCH < _N_UBATCH:
+    raise RuntimeError("llama.cpp requires n_batch >= n_ubatch")
 _LLM_LOAD_RETRY_SECS = 300.0  # re-attempt a failed model load after this long
 # How long close() waits for the inference thread to finish its current job and
 # exit. Bounded so an unload never wedges a shutdown; the thread is a daemon, so
