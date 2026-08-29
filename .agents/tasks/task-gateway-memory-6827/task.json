@@ -1,0 +1,7 @@
+{
+  "task_id": "task-gateway-memory-6827",
+  "task_description": "Investigate and mitigate GitHub issue #6827: the KiroCrew Python Gateway process grows from ~600 MB to ~3 GB RSS within ~10 minutes of startup on Windows 11 (50+ skills, local git-clone knowledge sources, Telegram enabled), with no user interaction. The live symptom cannot be reproduced in this Linux INTEGRATIONS_ONLY sandbox, so the work is source-analysis-driven: confirm the strongest root-cause candidate, apply a defensive fix with a targeted test, rule out the other suspects with evidence, and document findings plus reporter diagnostics for the PR. Primary candidate confirmed from source: the in-process embedder (src/kiro_crew/embeddings.py) constructs the vendored llama.cpp Llama with n_batch=n_ctx=2048, causing the vendored scores/logits buffer to be eagerly allocated at ~1.24 GB (2048 * ~151k vocab * 4 bytes) even though the embedding path never reads it. Fix: shrink that buffer by reducing the embedder's n_batch while preserving embedding output.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
