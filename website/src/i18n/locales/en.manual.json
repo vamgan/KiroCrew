@@ -65,7 +65,8 @@
     "open_command_bar": "Open Command Bar",
     "focus_mode": "Focus mode",
     "focus_mode_title": "Focus mode · Alt+Shift+M",
-    "focus_mode_title_mac": "Focus mode · ⌥⇧M"
+    "focus_mode_title_mac": "Focus mode · ⌥⇧M",
+    "connect_your_phone": "Connect your phone"
   },
   "appSdk": {
     "chatEmbed": {
@@ -2529,6 +2530,28 @@
       "status_running": "working",
       "status_unread": "unread",
       "tab_name_with_status": "{{name}} — {{status}}"
+    },
+    "mobileConnect": {
+      "use_kiro_crew_on_your_phone": "Use Kiro Crew on your phone",
+      "close": "Close",
+      "scan_with_your_phone_camera_to_continue_with_the_s": "Scan with your phone camera to open Kiro Crew in your mobile browser. Everything stays in sync with this computer.",
+      "generating": "Generating…",
+      "show_qr_code": "Show QR code",
+      "qr_code_for_mobile_access": "QR code for mobile access",
+      "copy_link": "Copy link",
+      "could_not_generate_a_code_try_again": "Could not generate a code — try again.",
+      "remote_access_is_not_set_up_yet_finish_setup_to_ge": "Remote access is not set up yet. Finish setup to get a scannable code.",
+      "remote_access_ready_the_code_carries_a_live_sign_i": "The code signs you in automatically and expires in about {{minutes}} minutes — reopen this dialog for a fresh one.",
+      "or_create_a_one_time_sign_in_link_to_send_to_yours": "No camera handy? Create a one-time link to send to yourself — it works once, then expires.",
+      "creating": "Creating…",
+      "create_sign_in_link": "Create sign-in link",
+      "could_not_create_a_link_check_that_an_external_add": "Could not create a link — check that an external address is configured for this dashboard.",
+      "mobile_access_link": "Mobile access link",
+      "one_time_sign_in_link": "One-time sign-in link",
+      "checking_remote_access": "Checking remote access…",
+      "could_not_check_remote_access_reopen_this_dialog_t": "Could not check remote access — reopen this dialog to retry.",
+      "create_a_one_time_sign_in_link_to_send_to_yourself": "Create a one-time sign-in link to send to yourself — it works once, then expires.",
+      "the_link_works_once_and_expires_in_about_minutes": "The link works once and expires in about {{minutes}} minutes."
     }
   },
   "hooks": {

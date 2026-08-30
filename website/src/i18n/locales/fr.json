@@ -115,7 +115,8 @@
     "open_command_bar": "Ouvrir Command Bar",
     "focus_mode": "Mode concentration",
     "focus_mode_title": "Mode concentration · Alt+Maj+M",
-    "focus_mode_title_mac": "Mode concentration · ⌥⇧M"
+    "focus_mode_title_mac": "Mode concentration · ⌥⇧M",
+    "connect_your_phone": "Connecter votre téléphone"
   },
   "appSdk": {
     "chatEmbed": {
@@ -7636,6 +7637,28 @@
       "status_running": "en cours",
       "status_unread": "non lu",
       "tab_name_with_status": "{{name}} — {{status}}"
+    },
+    "mobileConnect": {
+      "use_kiro_crew_on_your_phone": "Utiliser Kiro Crew sur votre téléphone",
+      "close": "Fermer",
+      "scan_with_your_phone_camera_to_continue_with_the_s": "Scannez avec l'appareil photo de votre téléphone pour ouvrir Kiro Crew dans votre navigateur mobile. Tout reste synchronisé avec cet ordinateur.",
+      "generating": "Génération…",
+      "show_qr_code": "Afficher le code QR",
+      "qr_code_for_mobile_access": "Code QR pour l'accès mobile",
+      "copy_link": "Copier le lien",
+      "could_not_generate_a_code_try_again": "Impossible de générer un code — réessayez.",
+      "remote_access_is_not_set_up_yet_finish_setup_to_ge": "L'accès distant n'est pas encore configuré. Terminez la configuration pour obtenir un code scannable.",
+      "remote_access_ready_the_code_carries_a_live_sign_i": "Le code vous connecte automatiquement et expire dans environ {{minutes}} minutes — rouvrez cette boîte de dialogue pour en obtenir un nouveau.",
+      "or_create_a_one_time_sign_in_link_to_send_to_yours": "Pas de caméra sous la main ? Créez un lien à usage unique à vous envoyer — il fonctionne une fois puis expire.",
+      "creating": "Création…",
+      "create_sign_in_link": "Créer un lien de connexion",
+      "could_not_create_a_link_check_that_an_external_add": "Impossible de créer un lien — vérifiez qu'une adresse externe est configurée pour ce tableau de bord.",
+      "mobile_access_link": "Lien d'accès mobile",
+      "one_time_sign_in_link": "Lien de connexion à usage unique",
+      "checking_remote_access": "Vérification de l'accès distant…",
+      "could_not_check_remote_access_reopen_this_dialog_t": "Impossible de vérifier l'accès distant — rouvrez cette boîte de dialogue pour réessayer.",
+      "create_a_one_time_sign_in_link_to_send_to_yourself": "Créez un lien de connexion à usage unique à vous envoyer — il fonctionne une fois, puis expire.",
+      "the_link_works_once_and_expires_in_about_minutes": "Le lien fonctionne une seule fois et expire dans environ {{minutes}} minutes."
     }
   },
   "hooks": {

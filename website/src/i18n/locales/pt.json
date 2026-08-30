@@ -115,7 +115,8 @@
     "open_command_bar": "Abrir o Command Bar",
     "focus_mode": "Modo de foco",
     "focus_mode_title": "Modo de foco · Alt+Shift+M",
-    "focus_mode_title_mac": "Modo de foco · ⌥⇧M"
+    "focus_mode_title_mac": "Modo de foco · ⌥⇧M",
+    "connect_your_phone": "Conectar seu telefone"
   },
   "appSdk": {
     "chatEmbed": {
@@ -7636,6 +7637,28 @@
       "status_running": "trabalhando",
       "status_unread": "não lida",
       "tab_name_with_status": "{{name}} — {{status}}"
+    },
+    "mobileConnect": {
+      "use_kiro_crew_on_your_phone": "Usar o Kiro Crew no seu telefone",
+      "close": "Fechar",
+      "scan_with_your_phone_camera_to_continue_with_the_s": "Escaneie com a câmera do telefone para abrir o Kiro Crew no navegador móvel. Tudo fica sincronizado com este computador.",
+      "generating": "Gerando…",
+      "show_qr_code": "Mostrar código QR",
+      "qr_code_for_mobile_access": "Código QR para acesso móvel",
+      "copy_link": "Copiar link",
+      "could_not_generate_a_code_try_again": "Não foi possível gerar um código — tente novamente.",
+      "remote_access_is_not_set_up_yet_finish_setup_to_ge": "O acesso remoto ainda não está configurado. Conclua a configuração para obter um código escaneável.",
+      "remote_access_ready_the_code_carries_a_live_sign_i": "O código faz login automaticamente e expira em cerca de {{minutes}} minutos — reabra esta janela para obter um novo.",
+      "or_create_a_one_time_sign_in_link_to_send_to_yours": "Sem câmera por perto? Crie um link de uso único para enviar a você mesmo — funciona uma vez e depois expira.",
+      "creating": "Criando…",
+      "create_sign_in_link": "Criar link de login",
+      "could_not_create_a_link_check_that_an_external_add": "Não foi possível criar um link — verifique se um endereço externo está configurado para este painel.",
+      "mobile_access_link": "Link de acesso móvel",
+      "one_time_sign_in_link": "Link de login de uso único",
+      "checking_remote_access": "Verificando o acesso remoto…",
+      "could_not_check_remote_access_reopen_this_dialog_t": "Não foi possível verificar o acesso remoto — reabra esta caixa de diálogo para tentar novamente.",
+      "create_a_one_time_sign_in_link_to_send_to_yourself": "Crie um link de login de uso único para enviar a si mesmo — ele funciona uma vez e depois expira.",
+      "the_link_works_once_and_expires_in_about_minutes": "O link funciona uma vez e expira em cerca de {{minutes}} minutos."
     }
   },
   "hooks": {

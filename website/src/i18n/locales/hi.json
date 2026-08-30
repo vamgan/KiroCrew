@@ -112,7 +112,8 @@
     "open_command_bar": "Command Bar खोलें",
     "focus_mode": "फ़ोकस मोड",
     "focus_mode_title": "फ़ोकस मोड · Alt+Shift+M",
-    "focus_mode_title_mac": "फ़ोकस मोड · ⌥⇧M"
+    "focus_mode_title_mac": "फ़ोकस मोड · ⌥⇧M",
+    "connect_your_phone": "फ़ोन कनेक्ट करें"
   },
   "appSdk": {
     "chatEmbed": {
@@ -7526,6 +7527,28 @@
       "status_running": "काम चल रहा है",
       "status_unread": "अपठित",
       "tab_name_with_status": "{{name}} — {{status}}"
+    },
+    "mobileConnect": {
+      "use_kiro_crew_on_your_phone": "अपने फ़ोन पर Kiro Crew इस्तेमाल करें",
+      "close": "बंद करें",
+      "scan_with_your_phone_camera_to_continue_with_the_s": "अपने फ़ोन के कैमरे से स्कैन करें और मोबाइल ब्राउज़र में Kiro Crew खोलें। सब कुछ इस कंप्यूटर के साथ सिंक रहता है।",
+      "generating": "बनाया जा रहा है…",
+      "show_qr_code": "QR कोड दिखाएँ",
+      "qr_code_for_mobile_access": "मोबाइल एक्सेस के लिए QR कोड",
+      "copy_link": "लिंक कॉपी करें",
+      "could_not_generate_a_code_try_again": "कोड नहीं बन पाया — फिर से आज़माएँ।",
+      "remote_access_is_not_set_up_yet_finish_setup_to_ge": "रिमोट एक्सेस अभी सेट नहीं है। स्कैन करने योग्य कोड पाने के लिए सेटअप पूरा करें।",
+      "remote_access_ready_the_code_carries_a_live_sign_i": "कोड अपने आप साइन इन करता है और लगभग {{minutes}} मिनट में समाप्त हो जाता है — नया पाने के लिए यह विंडो फिर खोलें।",
+      "or_create_a_one_time_sign_in_link_to_send_to_yours": "कैमरा पास नहीं है? खुद को भेजने के लिए एक बार इस्तेमाल होने वाला लिंक बनाएँ — यह एक बार चलता है, फिर समाप्त।",
+      "creating": "बनाया जा रहा है…",
+      "create_sign_in_link": "साइन-इन लिंक बनाएँ",
+      "could_not_create_a_link_check_that_an_external_add": "लिंक नहीं बन पाया — जाँचें कि इस डैशबोर्ड के लिए बाहरी पता कॉन्फ़िगर है या नहीं।",
+      "mobile_access_link": "मोबाइल एक्सेस लिंक",
+      "one_time_sign_in_link": "एक बार इस्तेमाल होने वाला साइन-इन लिंक",
+      "checking_remote_access": "रिमोट एक्सेस की जाँच हो रही है…",
+      "could_not_check_remote_access_reopen_this_dialog_t": "रिमोट एक्सेस की जाँच नहीं हो सकी — पुनः प्रयास करने के लिए यह डायलॉग फिर से खोलें।",
+      "create_a_one_time_sign_in_link_to_send_to_yourself": "खुद को भेजने के लिए एक बार इस्तेमाल होने वाला साइन-इन लिंक बनाएँ — यह एक बार काम करता है, फिर समाप्त हो जाता है।",
+      "the_link_works_once_and_expires_in_about_minutes": "लिंक एक बार काम करता है और लगभग {{minutes}} मिनट में समाप्त हो जाता है।"
     }
   },
   "hooks": {

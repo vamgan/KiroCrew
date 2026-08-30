@@ -112,7 +112,8 @@
     "open_command_bar": "Command Bar খুলুন",
     "focus_mode": "ফোকাস মোড",
     "focus_mode_title": "ফোকাস মোড · Alt+Shift+M",
-    "focus_mode_title_mac": "ফোকাস মোড · ⌥⇧M"
+    "focus_mode_title_mac": "ফোকাস মোড · ⌥⇧M",
+    "connect_your_phone": "ফোন সংযুক্ত করুন"
   },
   "appSdk": {
     "chatEmbed": {
@@ -7526,6 +7527,28 @@
       "status_running": "কাজ চলছে",
       "status_unread": "অপঠিত",
       "tab_name_with_status": "{{name}} — {{status}}"
+    },
+    "mobileConnect": {
+      "use_kiro_crew_on_your_phone": "আপনার ফোনে Kiro Crew ব্যবহার করুন",
+      "close": "বন্ধ করুন",
+      "scan_with_your_phone_camera_to_continue_with_the_s": "ফোনের ক্যামেরা দিয়ে স্ক্যান করে মোবাইল ব্রাউজারে Kiro Crew খুলুন। সবকিছু এই কম্পিউটারের সাথে সিঙ্ক থাকে।",
+      "generating": "তৈরি হচ্ছে…",
+      "show_qr_code": "QR কোড দেখান",
+      "qr_code_for_mobile_access": "মোবাইল অ্যাক্সেসের QR কোড",
+      "copy_link": "লিঙ্ক কপি করুন",
+      "could_not_generate_a_code_try_again": "কোড তৈরি করা যায়নি — আবার চেষ্টা করুন।",
+      "remote_access_is_not_set_up_yet_finish_setup_to_ge": "রিমোট অ্যাক্সেস এখনও সেট করা হয়নি। স্ক্যানযোগ্য কোড পেতে সেটআপ সম্পূর্ণ করুন।",
+      "remote_access_ready_the_code_carries_a_live_sign_i": "কোডটি স্বয়ংক্রিয়ভাবে সাইন ইন করে এবং প্রায় {{minutes}} মিনিটে মেয়াদ শেষ হয় — নতুনটির জন্য এই উইন্ডোটি আবার খুলুন।",
+      "or_create_a_one_time_sign_in_link_to_send_to_yours": "ক্যামেরা হাতের কাছে নেই? নিজেকে পাঠানোর জন্য এককালীন লিঙ্ক তৈরি করুন — একবার কাজ করে, তারপর মেয়াদ শেষ.",
+      "creating": "তৈরি হচ্ছে…",
+      "create_sign_in_link": "সাইন-ইন লিঙ্ক তৈরি করুন",
+      "could_not_create_a_link_check_that_an_external_add": "লিঙ্ক তৈরি করা যায়নি — এই ড্যাশবোর্ডের জন্য বাহ্যিক ঠিকানা কনফিগার করা আছে কিনা দেখুন।",
+      "mobile_access_link": "মোবাইল অ্যাক্সেস লিঙ্ক",
+      "one_time_sign_in_link": "এককালীন সাইন-ইন লিঙ্ক",
+      "checking_remote_access": "রিমোট অ্যাক্সেস পরীক্ষা করা হচ্ছে…",
+      "could_not_check_remote_access_reopen_this_dialog_t": "রিমোট অ্যাক্সেস পরীক্ষা করা যায়নি — আবার চেষ্টা করতে এই ডায়ালগটি পুনরায় খুলুন।",
+      "create_a_one_time_sign_in_link_to_send_to_yourself": "নিজেকে পাঠানোর জন্য এককালীন সাইন-ইন লিঙ্ক তৈরি করুন — এটি একবার কাজ করে, তারপর মেয়াদ শেষ হয়ে যায়.",
+      "the_link_works_once_and_expires_in_about_minutes": "লিঙ্কটি একবার কাজ করে এবং প্রায় {{minutes}} মিনিটে মেয়াদ শেষ হয়ে যায়।"
     }
   },
   "hooks": {

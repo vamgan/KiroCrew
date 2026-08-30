@@ -109,7 +109,8 @@
     "open_command_bar": "打开 Command Bar",
     "focus_mode": "专注模式",
     "focus_mode_title": "专注模式 · Alt+Shift+M",
-    "focus_mode_title_mac": "专注模式 · ⌥⇧M"
+    "focus_mode_title_mac": "专注模式 · ⌥⇧M",
+    "connect_your_phone": "连接手机"
   },
   "appSdk": {
     "chatEmbed": {
@@ -7416,6 +7417,28 @@
       "status_running": "正在处理",
       "status_unread": "未读",
       "tab_name_with_status": "{{name}} — {{status}}"
+    },
+    "mobileConnect": {
+      "use_kiro_crew_on_your_phone": "在手机上使用 Kiro Crew",
+      "close": "关闭",
+      "scan_with_your_phone_camera_to_continue_with_the_s": "用手机相机扫码，在手机浏览器里打开 Kiro Crew。所有内容与这台电脑实时同步。",
+      "generating": "生成中…",
+      "show_qr_code": "显示二维码",
+      "qr_code_for_mobile_access": "手机访问二维码",
+      "copy_link": "复制链接",
+      "could_not_generate_a_code_try_again": "生成二维码失败，请重试。",
+      "remote_access_is_not_set_up_yet_finish_setup_to_ge": "远程访问尚未设置。完成设置后即可获得可扫描的二维码。",
+      "remote_access_ready_the_code_carries_a_live_sign_i": "二维码可直接登录，约 {{minutes}} 分钟后过期——重新打开此窗口即可获取新码。",
+      "or_create_a_one_time_sign_in_link_to_send_to_yours": "手边没有相机？创建一次性链接发给自己，仅可使用一次，随后过期。",
+      "creating": "创建中…",
+      "create_sign_in_link": "创建登录链接",
+      "could_not_create_a_link_check_that_an_external_add": "创建链接失败——请检查此面板是否配置了外部访问地址。",
+      "mobile_access_link": "手机访问链接",
+      "one_time_sign_in_link": "一次性登录链接",
+      "checking_remote_access": "正在检查远程访问…",
+      "could_not_check_remote_access_reopen_this_dialog_t": "无法检查远程访问，请重新打开此对话框重试。",
+      "create_a_one_time_sign_in_link_to_send_to_yourself": "创建一次性登录链接并发送给自己，链接使用一次后即失效。",
+      "the_link_works_once_and_expires_in_about_minutes": "链接仅可使用一次，约 {{minutes}} 分钟后失效。"
     }
   },
   "hooks": {

@@ -112,7 +112,8 @@
     "open_command_bar": "Command Bar oeffnen",
     "focus_mode": "Fokusmodus",
     "focus_mode_title": "Fokusmodus · Alt+Umschalt+M",
-    "focus_mode_title_mac": "Fokusmodus · ⌥⇧M"
+    "focus_mode_title_mac": "Fokusmodus · ⌥⇧M",
+    "connect_your_phone": "Telefon verbinden"
   },
   "appSdk": {
     "chatEmbed": {
@@ -7526,6 +7527,28 @@
       "status_running": "arbeitet",
       "status_unread": "ungelesen",
       "tab_name_with_status": "{{name}} — {{status}}"
+    },
+    "mobileConnect": {
+      "use_kiro_crew_on_your_phone": "Kiro Crew auf dem Telefon nutzen",
+      "close": "Schließen",
+      "scan_with_your_phone_camera_to_continue_with_the_s": "Mit der Handykamera scannen, um Kiro Crew im mobilen Browser zu öffnen. Alles bleibt mit diesem Computer synchron.",
+      "generating": "Wird erzeugt …",
+      "show_qr_code": "QR-Code anzeigen",
+      "qr_code_for_mobile_access": "QR-Code für mobilen Zugriff",
+      "copy_link": "Link kopieren",
+      "could_not_generate_a_code_try_again": "Code konnte nicht erzeugt werden – bitte erneut versuchen.",
+      "remote_access_is_not_set_up_yet_finish_setup_to_ge": "Fernzugriff ist noch nicht eingerichtet. Schließen Sie die Einrichtung ab, um einen scanbaren Code zu erhalten.",
+      "remote_access_ready_the_code_carries_a_live_sign_i": "Der Code meldet Sie automatisch an und läuft in etwa {{minutes}} Minuten ab – öffnen Sie diesen Dialog erneut für einen neuen.",
+      "or_create_a_one_time_sign_in_link_to_send_to_yours": "Keine Kamera zur Hand? Erstellen Sie einen einmaligen Link zum Selbstversenden – er funktioniert einmal und läuft dann ab.",
+      "creating": "Wird erstellt …",
+      "create_sign_in_link": "Anmeldelink erstellen",
+      "could_not_create_a_link_check_that_an_external_add": "Link konnte nicht erstellt werden – prüfen Sie, ob für dieses Dashboard eine externe Adresse konfiguriert ist.",
+      "mobile_access_link": "Link für mobilen Zugriff",
+      "one_time_sign_in_link": "Einmaliger Anmeldelink",
+      "checking_remote_access": "Fernzugriff wird geprüft …",
+      "could_not_check_remote_access_reopen_this_dialog_t": "Fernzugriff konnte nicht geprüft werden — Dialog erneut öffnen, um es noch einmal zu versuchen.",
+      "create_a_one_time_sign_in_link_to_send_to_yourself": "Erstellen Sie einen einmaligen Anmeldelink, den Sie sich selbst senden — er funktioniert einmal und läuft dann ab.",
+      "the_link_works_once_and_expires_in_about_minutes": "Der Link funktioniert einmal und läuft in etwa {{minutes}} Minuten ab."
     }
   },
   "hooks": {

@@ -109,7 +109,8 @@
     "open_command_bar": "Command Bar を開く",
     "focus_mode": "フォーカスモード",
     "focus_mode_title": "フォーカスモード · Alt+Shift+M",
-    "focus_mode_title_mac": "フォーカスモード · ⌥⇧M"
+    "focus_mode_title_mac": "フォーカスモード · ⌥⇧M",
+    "connect_your_phone": "スマホを接続"
   },
   "appSdk": {
     "chatEmbed": {
@@ -7416,6 +7417,28 @@
       "status_running": "処理中",
       "status_unread": "未読",
       "tab_name_with_status": "{{name}} — {{status}}"
+    },
+    "mobileConnect": {
+      "use_kiro_crew_on_your_phone": "スマホで Kiro Crew を使う",
+      "close": "閉じる",
+      "scan_with_your_phone_camera_to_continue_with_the_s": "スマホのカメラでスキャンすると、モバイルブラウザーで Kiro Crew を開けます。すべてこのパソコンと同期されます。",
+      "generating": "生成中…",
+      "show_qr_code": "QR コードを表示",
+      "qr_code_for_mobile_access": "モバイルアクセス用 QR コード",
+      "copy_link": "リンクをコピー",
+      "could_not_generate_a_code_try_again": "コードを生成できませんでした。もう一度お試しください。",
+      "remote_access_is_not_set_up_yet_finish_setup_to_ge": "リモートアクセスは未設定です。設定を完了するとスキャン可能なコードを取得できます。",
+      "remote_access_ready_the_code_carries_a_live_sign_i": "コードは自動的にサインインし、約 {{minutes}} 分で期限切れになります。新しいコードはこのダイアログを開き直して取得してください。",
+      "or_create_a_one_time_sign_in_link_to_send_to_yours": "カメラが使えない場合は、自分宛てのワンタイムリンクを作成できます。リンクは 1 回のみ有効です。",
+      "creating": "作成中…",
+      "create_sign_in_link": "サインインリンクを作成",
+      "could_not_create_a_link_check_that_an_external_add": "リンクを作成できませんでした。このダッシュボードに外部アドレスが設定されているか確認してください。",
+      "mobile_access_link": "モバイルアクセスリンク",
+      "one_time_sign_in_link": "ワンタイムサインインリンク",
+      "checking_remote_access": "リモートアクセスを確認しています…",
+      "could_not_check_remote_access_reopen_this_dialog_t": "リモートアクセスを確認できませんでした。このダイアログを開き直して再試行してください。",
+      "create_a_one_time_sign_in_link_to_send_to_yourself": "自分宛てに送るワンタイムサインインリンクを作成します。1回使用すると期限切れになります。",
+      "the_link_works_once_and_expires_in_about_minutes": "リンクは1回のみ有効で、約{{minutes}}分で期限切れになります。"
     }
   },
   "hooks": {

@@ -1063,6 +1063,14 @@ export interface TailnetMobileMutation {
   detail: string
 }
 
+/** Phone-connection methods surviving the governance filter. `kind` names the
+ *  renderer; the dashboard skips a kind it does not recognise, so an edition's
+ *  new method degrades to absent on an older frontend, never to a broken panel. */
+export interface MobileConnectMethodsData {
+  enabled: boolean
+  methods: { id: string; kind: string }[]
+}
+
 /** Durable config established by the explicit mobile setup action. */
 export interface TailnetMobileConfigure {
   /** Trust/origin settings are snapshotted by middleware at gateway boot. */
@@ -2141,6 +2149,12 @@ export const api = {
     url: string
     expires_in: number
   }>,
+  // Phone-connection methods available on this deployment under the current
+  // governance ceiling (CPP mobile_connect seam). Descriptor-only: minting the
+  // credential stays on each method's own endpoint above/below. An empty list
+  // hides the sidebar "Connect your phone" entry entirely.
+  mobileConnectMethods: () =>
+    get('/api/mobile-connect/methods').then(j) as Promise<MobileConnectMethodsData>,
   // Tailnet origin (Settings → Security). READ ONLY here: the toggle writes
   // `dashboard.tailscale.enabled` through the generic config PATCH, because the
   // setting IS a config value and the status endpoint reports what the running

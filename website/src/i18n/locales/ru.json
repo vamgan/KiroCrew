@@ -118,7 +118,8 @@
     "open_command_bar": "Открыть Command Bar",
     "focus_mode": "Режим фокусировки",
     "focus_mode_title": "Режим фокусировки · Alt+Shift+M",
-    "focus_mode_title_mac": "Режим фокусировки · ⌥⇧M"
+    "focus_mode_title_mac": "Режим фокусировки · ⌥⇧M",
+    "connect_your_phone": "Подключить телефон"
   },
   "appSdk": {
     "chatEmbed": {
@@ -7746,6 +7747,28 @@
       "status_running": "работает",
       "status_unread": "не прочитано",
       "tab_name_with_status": "{{name}} — {{status}}"
+    },
+    "mobileConnect": {
+      "use_kiro_crew_on_your_phone": "Kiro Crew на вашем телефоне",
+      "close": "Закрыть",
+      "scan_with_your_phone_camera_to_continue_with_the_s": "Отсканируйте камерой телефона, чтобы открыть Kiro Crew в мобильном браузере. Всё синхронизируется с этим компьютером.",
+      "generating": "Создание…",
+      "show_qr_code": "Показать QR-код",
+      "qr_code_for_mobile_access": "QR-код для мобильного доступа",
+      "copy_link": "Копировать ссылку",
+      "could_not_generate_a_code_try_again": "Не удалось создать код — попробуйте ещё раз.",
+      "remote_access_is_not_set_up_yet_finish_setup_to_ge": "Удалённый доступ ещё не настроен. Завершите настройку, чтобы получить сканируемый код.",
+      "remote_access_ready_the_code_carries_a_live_sign_i": "Код выполняет вход автоматически и истекает примерно через {{minutes}} мин — откройте это окно заново, чтобы получить новый.",
+      "or_create_a_one_time_sign_in_link_to_send_to_yours": "Нет камеры под рукой? Создайте одноразовую ссылку и отправьте её себе — она сработает один раз и истечёт.",
+      "creating": "Создание…",
+      "create_sign_in_link": "Создать ссылку для входа",
+      "could_not_create_a_link_check_that_an_external_add": "Не удалось создать ссылку — проверьте, настроен ли внешний адрес для этой панели.",
+      "mobile_access_link": "Ссылка мобильного доступа",
+      "one_time_sign_in_link": "Одноразовая ссылка для входа",
+      "checking_remote_access": "Проверка удалённого доступа…",
+      "could_not_check_remote_access_reopen_this_dialog_t": "Не удалось проверить удалённый доступ — откройте это окно ещё раз, чтобы повторить попытку.",
+      "create_a_one_time_sign_in_link_to_send_to_yourself": "Создайте одноразовую ссылку для входа и отправьте её себе — она сработает один раз, затем истечёт.",
+      "the_link_works_once_and_expires_in_about_minutes": "Ссылка работает один раз и истекает примерно через {{minutes}} мин."
     }
   },
   "hooks": {
