@@ -6015,7 +6015,15 @@
       "start_over": "আবার শুরু করুন",
       "the_code_expired": "কোডের মেয়াদ শেষ",
       "the_code_expired_body": "এই সাইন-ইন কোডটি আর বৈধ নয়",
-      "waiting_for_you_to_approve": "আপনার অনুমোদনের অপেক্ষায়…"
+      "waiting_for_you_to_approve": "আপনার অনুমোদনের অপেক্ষায়…",
+      "continue_with_builder_id": "AWS Builder ID দিয়ে চালিয়ে যান",
+      "continue_with_company_sso": "কোম্পানির SSO দিয়ে চালিয়ে যান",
+      "sso_start_url_label": "কোম্পানির সাইন-ইন URL",
+      "sso_start_url_placeholder": "https://your-company.awsapps.com/start",
+      "sso_helper": "আপনার কোম্পানির দেওয়া AWS অ্যাক্সেস পোর্টাল URL এখানে পেস্ট করুন।",
+      "sso_region_label": "AWS রিজিয়ন (ঐচ্ছিক)",
+      "sso_continue": "চালিয়ে যান",
+      "sso_cancel": "বাতিল"
     },
     "kiroPrerequisiteGate": {
       "agent_specs_missing": "এজেন্ট স্পেক অনুপস্থিত",

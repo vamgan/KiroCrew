@@ -6015,7 +6015,15 @@
       "start_over": "फिर से शुरू करें",
       "the_code_expired": "कोड की मियाद खत्म हो गई",
       "the_code_expired_body": "यह साइन-इन कोड अब मान्य नहीं है",
-      "waiting_for_you_to_approve": "मंज़ूरी का इंतज़ार है…"
+      "waiting_for_you_to_approve": "मंज़ूरी का इंतज़ार है…",
+      "continue_with_builder_id": "AWS Builder ID के साथ जारी रखो",
+      "continue_with_company_sso": "कंपनी SSO के साथ जारी रखो",
+      "sso_start_url_label": "कंपनी की साइन-इन URL",
+      "sso_start_url_placeholder": "https://your-company.awsapps.com/start",
+      "sso_helper": "अपनी कंपनी की दी हुई AWS एक्सेस पोर्टल URL यहाँ पेस्ट करो।",
+      "sso_region_label": "AWS रीजन (वैकल्पिक)",
+      "sso_continue": "जारी रखो",
+      "sso_cancel": "रद्द करो"
     },
     "kiroPrerequisiteGate": {
       "agent_specs_missing": "एजेंट स्पेक मौजूद नहीं",

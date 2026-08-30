@@ -6117,7 +6117,15 @@
       "start_over": "Começar de novo",
       "the_code_expired": "O código expirou",
       "the_code_expired_body": "Esse código de login não é mais válido",
-      "waiting_for_you_to_approve": "Aguardando sua aprovação…"
+      "waiting_for_you_to_approve": "Aguardando sua aprovação…",
+      "continue_with_builder_id": "Continuar com AWS Builder ID",
+      "continue_with_company_sso": "Continuar com o SSO da sua empresa",
+      "sso_start_url_label": "URL de login da sua empresa",
+      "sso_start_url_placeholder": "https://your-company.awsapps.com/start",
+      "sso_helper": "Cole a URL do portal de acesso da AWS que sua empresa forneceu.",
+      "sso_region_label": "Região da AWS (opcional)",
+      "sso_continue": "Continuar",
+      "sso_cancel": "Cancelar"
     },
     "kiroPrerequisiteGate": {
       "agent_specs_missing": "Especificações de agente ausentes",

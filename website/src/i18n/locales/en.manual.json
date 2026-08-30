@@ -1806,7 +1806,15 @@
       "start_over": "Start over",
       "the_code_expired": "The code expired",
       "the_code_expired_body": "That sign-in code is no longer valid",
-      "waiting_for_you_to_approve": "Waiting for you to approve…"
+      "waiting_for_you_to_approve": "Waiting for you to approve…",
+      "continue_with_builder_id": "Continue with AWS Builder ID",
+      "continue_with_company_sso": "Continue with company SSO",
+      "sso_start_url_label": "Company sign-in URL",
+      "sso_start_url_placeholder": "https://your-company.awsapps.com/start",
+      "sso_helper": "Paste the AWS access portal URL your company gave you.",
+      "sso_region_label": "AWS Region (optional)",
+      "sso_continue": "Continue",
+      "sso_cancel": "Cancel"
     },
     "kiroPrerequisiteGate": {
       "agent_specs_missing": "Agent specs missing",

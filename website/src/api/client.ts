@@ -2115,8 +2115,10 @@ export const api = {
   // CSRF/audit reasons as the spec repair above. Error responses carry a
   // machine-readable `code` field alongside the human message.
   kasLoginStatus: () => get('/api/kas-login').then(j) as Promise<KasLoginStatus>,
-  kasLoginBeginDevice: (provider: string) =>
-    post('/api/kas-login/device', { provider }).then(j) as Promise<KasLoginDeviceSession>,
+  kasLoginBeginDevice: (provider: string, extra?: { start_url?: string; region?: string }) =>
+    post('/api/kas-login/device', { provider, ...(extra ?? {}) }).then(
+      j,
+    ) as Promise<KasLoginDeviceSession>,
   kasLoginPoll: (login_id: string) =>
     post('/api/kas-login/poll', { login_id }).then(j) as Promise<KasLoginPollResult>,
   kasLoginLogout: (identity: string) =>

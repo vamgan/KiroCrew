@@ -277,3 +277,181 @@ async def test_begin_device_evicts_expired_pending(tmp_path, monkeypatch):
     live = (await _begin(service, monkeypatch, _device_auth(expires_in_secs=300)))["login_id"]
     assert stale not in service._pending
     assert live in service._pending
+
+
+# ---------------------------------------------------------------------------
+# SSO-OIDC flavors: Builder ID and IAM Identity Center (IdC).
+# begin is faked at the builder_id module seam; poll drives the single-shot
+# token POST (and, for IdC, the control-plane profile POST) through the same
+# scripted fake session as the social tests.
+# ---------------------------------------------------------------------------
+
+from kiro_crew.auth.login import builder_id  # noqa: E402
+from kiro_crew.auth.service import MissingStartUrlError  # noqa: E402
+
+
+def _oidc_auth(expires_in_secs: float = 300) -> builder_id.DeviceAuthorization:
+    return builder_id.DeviceAuthorization(
+        device_code="oidc-dc-1",
+        user_code="WXYZ-1234",
+        verification_uri="https://device.sso.us-east-1.amazonaws.com/",
+        verification_uri_complete="https://device.sso.us-east-1.amazonaws.com/?user_code=WXYZ-1234",
+        expires_at=datetime.now(timezone.utc) + timedelta(seconds=expires_in_secs),
+        interval_secs=0.0,
+    )
+
+
+async def _begin_oidc(service, monkeypatch, provider: str, **kwargs) -> dict:
+    async def _fake_register(region, *, session):
+        return builder_id.RegisteredClient(client_id="cid-1", client_secret="csec-1")
+
+    async def _fake_start(client, *, region, start_url, session):
+        _fake_start.seen = {"region": region, "start_url": start_url}  # type: ignore[attr-defined]
+        return _oidc_auth()
+
+    monkeypatch.setattr(builder_id, "register_client", _fake_register)
+    monkeypatch.setattr(builder_id, "start_device_authorization", _fake_start)
+    result = await service.begin_device(provider, **kwargs)
+    result["_seen"] = getattr(_fake_start, "seen", {})
+    return result
+
+
+async def test_begin_builder_id_uses_default_start_url(tmp_path, monkeypatch):
+    service, _ = _service(tmp_path)
+    result = await _begin_oidc(service, monkeypatch, "builder_id")
+    assert result["user_code"] == "WXYZ-1234"
+    assert result["_seen"]["start_url"] == "https://view.awsapps.com/start"
+    assert result["_seen"]["region"] == "us-east-1"
+
+
+async def test_begin_idc_requires_start_url(tmp_path):
+    service, _ = _service(tmp_path)
+    with pytest.raises(MissingStartUrlError):
+        await service.begin_device("idc")
+    with pytest.raises(MissingStartUrlError):
+        await service.begin_device("idc", start_url="   ")
+
+
+async def test_begin_idc_uses_company_start_url_and_region(tmp_path, monkeypatch):
+    service, _ = _service(tmp_path)
+    result = await _begin_oidc(
+        service, monkeypatch, "idc", start_url="https://acme.awsapps.com/start", region="eu-west-1"
+    )
+    assert result["_seen"] == {
+        "start_url": "https://acme.awsapps.com/start",
+        "region": "eu-west-1",
+    }
+
+
+async def test_poll_builder_id_pending_then_authorized(tmp_path, monkeypatch):
+    service, session = _service(
+        tmp_path,
+        responses=[
+            _FakeResp(400, {"error": "authorization_pending"}),
+            _FakeResp(200, {"accessToken": "at-1", "refreshToken": "rt-1", "expiresIn": 3600}),
+        ],
+    )
+    begin = await _begin_oidc(service, monkeypatch, "builder_id")
+    assert await service.poll_device(begin["login_id"]) == {"status": "pending"}
+    result = await service.poll_device(begin["login_id"])
+    assert result == {"status": "authorized", "provider": "BuilderId"}
+    saved = TokenStore(tmp_path).resolve()
+    assert saved is not None
+    assert saved.identity == "builder_id"
+    assert saved.profile_arn is None
+    # The registered client rides along for refresh.
+    assert saved.client_id == "cid-1"
+
+
+async def test_poll_idc_resolves_profile_arn(tmp_path, monkeypatch):
+    service, session = _service(
+        tmp_path,
+        responses=[
+            _FakeResp(200, {"accessToken": "at-2", "refreshToken": "rt-2", "expiresIn": 3600}),
+            _FakeResp(
+                200,
+                {"profiles": [{"arn": "arn:aws:kiro:us-east-1:1:profile/p1", "profileName": "P1"}]},
+            ),
+        ],
+    )
+    begin = await _begin_oidc(
+        service, monkeypatch, "idc", start_url="https://acme.awsapps.com/start"
+    )
+    result = await service.poll_device(begin["login_id"])
+    assert result == {"status": "authorized", "provider": "Enterprise"}
+    saved = TokenStore(tmp_path).resolve()
+    assert saved is not None
+    assert saved.identity == "identity_center"
+    assert saved.profile_arn == "arn:aws:kiro:us-east-1:1:profile/p1"
+    # The control-plane call carried the fresh bearer token.
+    cp_url, cp_body = session.calls[-1]
+    assert "kirocontrolplanebearerservice" in cp_url
+    assert cp_body == {"maxResults": 10}
+
+
+async def test_poll_idc_with_no_profiles_is_error_and_saves_nothing(tmp_path, monkeypatch):
+    service, _ = _service(
+        tmp_path,
+        responses=[
+            _FakeResp(200, {"accessToken": "at-3", "expiresIn": 3600}),
+            _FakeResp(200, {"profiles": []}),
+        ],
+    )
+    begin = await _begin_oidc(
+        service, monkeypatch, "idc", start_url="https://acme.awsapps.com/start"
+    )
+    assert await service.poll_device(begin["login_id"]) == {"status": "error"}
+    assert TokenStore(tmp_path).resolve() is None
+    # Terminal: the entry is dropped, a re-poll is unknown.
+    with pytest.raises(UnknownLoginError):
+        await service.poll_device(begin["login_id"])
+
+
+async def test_poll_idc_control_plane_failure_is_error(tmp_path, monkeypatch):
+    service, _ = _service(
+        tmp_path,
+        responses=[
+            _FakeResp(200, {"accessToken": "at-4", "expiresIn": 3600}),
+            _FakeResp(403, {"message": "forbidden"}),
+        ],
+    )
+    begin = await _begin_oidc(
+        service, monkeypatch, "idc", start_url="https://acme.awsapps.com/start"
+    )
+    assert await service.poll_device(begin["login_id"]) == {"status": "error"}
+    assert TokenStore(tmp_path).resolve() is None
+
+
+async def test_poll_oidc_expired_token_reports_expired(tmp_path, monkeypatch):
+    service, _ = _service(tmp_path, responses=[_FakeResp(400, {"error": "expired_token"})])
+    begin = await _begin_oidc(service, monkeypatch, "builder_id")
+    assert await service.poll_device(begin["login_id"]) == {"status": "expired"}
+    with pytest.raises(UnknownLoginError):
+        await service.poll_device(begin["login_id"])
+
+
+async def test_poll_oidc_multi_profile_picks_first(tmp_path, monkeypatch):
+    service, _ = _service(
+        tmp_path,
+        responses=[
+            _FakeResp(200, {"accessToken": "at-5", "expiresIn": 3600}),
+            _FakeResp(
+                200,
+                {
+                    "profiles": [
+                        {"arn": "arn:one", "profileName": "One"},
+                        {"arn": "arn:two", "profileName": "Two"},
+                    ]
+                },
+            ),
+        ],
+    )
+    begin = await _begin_oidc(
+        service, monkeypatch, "idc", start_url="https://acme.awsapps.com/start"
+    )
+    assert await service.poll_device(begin["login_id"]) == {
+        "status": "authorized",
+        "provider": "Enterprise",
+    }
+    saved = TokenStore(tmp_path).resolve()
+    assert saved is not None and saved.profile_arn == "arn:one"

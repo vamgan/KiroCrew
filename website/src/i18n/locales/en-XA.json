@@ -7233,7 +7233,15 @@
       "start_over": "[Şţàŕţ øṽèŕ ···············]",
       "the_code_expired": "[Ţĥè çøðè èẋþìŕèð ··············]",
       "the_code_expired_body": "[Ţĥàţ şìğñ-ìñ çøðè ìş ñø ĺøñğèŕ ṽàĺìð ··················]",
-      "waiting_for_you_to_approve": "[Ẁàìţìñğ ƒøŕ ýøù ţø àþþŕøṽè… ···················]"
+      "waiting_for_you_to_approve": "[Ẁàìţìñğ ƒøŕ ýøù ţø àþþŕøṽè… ···················]",
+      "continue_with_builder_id": "[Çøñţìñùè ẁìţĥ ÀẀŞ Ɓùìĺðèŕ ÌÐ ····················]",
+      "continue_with_company_sso": "[Çøñţìñùè ẁìţĥ çøɱþàñý ŞŞØ ··················]",
+      "sso_start_url_label": "[Çøɱþàñý şìğñ-ìñ ÙŔĹ ·················]",
+      "sso_start_url_placeholder": "[https://your-company.awsapps.com/start]",
+      "sso_helper": "[Þàşţè ţĥè ÀẀŞ àççèşş þøŕţàĺ ÙŔĹ ýøùŕ çøɱþàñý ğàṽè ýøù. ···················]",
+      "sso_region_label": "[ÀẀŞ Ŕèğìøñ (øþţìøñàĺ) ···············]",
+      "sso_continue": "[Çøñţìñùè ············]",
+      "sso_cancel": "[Çàñçèĺ ·········]"
     },
     "linkedSurfacesSection": {
       "connect_failed": "[Çøùĺð ñøţ çøññèçţ ţø {{label}}: {{reason}} ················]",

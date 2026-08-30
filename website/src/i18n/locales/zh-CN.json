@@ -5913,7 +5913,15 @@
       "start_over": "重新开始",
       "the_code_expired": "代码已过期",
       "the_code_expired_body": "该登录代码已失效",
-      "waiting_for_you_to_approve": "等待你批准…"
+      "waiting_for_you_to_approve": "等待你批准…",
+      "continue_with_builder_id": "使用 AWS Builder ID 继续",
+      "continue_with_company_sso": "使用公司 SSO 继续",
+      "sso_start_url_label": "公司登录网址",
+      "sso_start_url_placeholder": "https://your-company.awsapps.com/start",
+      "sso_helper": "粘贴公司提供给你的 AWS 访问门户网址。",
+      "sso_region_label": "AWS 区域（可选）",
+      "sso_continue": "继续",
+      "sso_cancel": "取消"
     },
     "kiroPrerequisiteGate": {
       "agent_specs_missing": "缺少代理规范",

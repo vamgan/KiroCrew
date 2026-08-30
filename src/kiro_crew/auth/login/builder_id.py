@@ -105,6 +105,41 @@ async def start_device_authorization(
     )
 
 
+async def poll_token_once(
+    client: RegisteredClient,
+    auth: DeviceAuthorization,
+    *,
+    region: str,
+    identity: str = "builder_id",
+    provider: str = "BuilderId",
+    session: aiohttp.ClientSession,
+) -> KasToken | None:
+    """One non-blocking poll of the token endpoint.
+
+    Returns the token when the user has approved, ``None`` while approval is still
+    pending (``authorization_pending`` / ``slow_down`` — the caller owns the cadence,
+    so slow_down is just "not yet" here), and raises BuilderIdAuthError for
+    ``expired_token`` or any other terminal rejection.
+    """
+    url = f"{oidc_url(region)}/token"
+    payload = {
+        "clientId": client.client_id,
+        "clientSecret": client.client_secret,
+        "grantType": _DEVICE_GRANT,
+        "deviceCode": auth.device_code,
+    }
+    async with session.post(url, json=payload, headers=_HEADERS) as resp:
+        data = await resp.json()
+        if resp.status == 200:
+            return _token_from_create(data, client, region, identity, provider)
+        err = (data or {}).get("error", "")
+    if err in ("authorization_pending", "slow_down"):
+        return None
+    if err == "expired_token":
+        raise BuilderIdAuthError("device code expired before approval")
+    raise BuilderIdAuthError(f"token poll failed: {err or 'unknown error'}")
+
+
 async def poll_token(
     client: RegisteredClient,
     auth: DeviceAuthorization,

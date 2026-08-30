@@ -6015,7 +6015,15 @@
       "start_over": "Neu beginnen",
       "the_code_expired": "Der Code ist abgelaufen",
       "the_code_expired_body": "Dieser Anmeldecode ist nicht mehr gültig",
-      "waiting_for_you_to_approve": "Warten auf deine Bestätigung…"
+      "waiting_for_you_to_approve": "Warten auf deine Bestätigung…",
+      "continue_with_builder_id": "Mit AWS Builder ID fortfahren",
+      "continue_with_company_sso": "Mit Firmen-SSO fortfahren",
+      "sso_start_url_label": "Anmelde-URL deiner Firma",
+      "sso_start_url_placeholder": "https://your-company.awsapps.com/start",
+      "sso_helper": "Füge die AWS-Zugangsportal-URL ein, die deine Firma dir gegeben hat.",
+      "sso_region_label": "AWS-Region (optional)",
+      "sso_continue": "Weiter",
+      "sso_cancel": "Abbrechen"
     },
     "kiroPrerequisiteGate": {
       "agent_specs_missing": "Agent-Spezifikationen fehlen",

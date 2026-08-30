@@ -6117,7 +6117,15 @@
       "start_over": "Ricomincia",
       "the_code_expired": "Il codice è scaduto",
       "the_code_expired_body": "Questo codice di accesso non è più valido",
-      "waiting_for_you_to_approve": "In attesa della tua approvazione…"
+      "waiting_for_you_to_approve": "In attesa della tua approvazione…",
+      "continue_with_builder_id": "Continua con AWS Builder ID",
+      "continue_with_company_sso": "Continua con l'SSO aziendale",
+      "sso_start_url_label": "URL di accesso aziendale",
+      "sso_start_url_placeholder": "https://your-company.awsapps.com/start",
+      "sso_helper": "Incolla l'URL del portale di accesso AWS fornito dalla tua azienda.",
+      "sso_region_label": "Regione AWS (facoltativa)",
+      "sso_continue": "Continua",
+      "sso_cancel": "Annulla"
     },
     "kiroPrerequisiteGate": {
       "agent_specs_missing": "Specifiche degli agenti mancanti",
